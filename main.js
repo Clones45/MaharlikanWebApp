@@ -1,7 +1,10 @@
 // main.js
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// ⬇️ NEW: auto-updater (uses your GitHub Releases per package.json "publish")
+const { autoUpdater } = require('electron-updater');
 
 // --- Safe .env loader (dev + packaged) ---
 (function loadEnv() {
@@ -46,6 +49,43 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+
+  // ⬇️ NEW: trigger auto-update a few seconds after launch
+  try {
+    // optional: auto download when found (default true)
+    autoUpdater.autoDownload = true;
+
+    setTimeout(() => {
+      console.log('[UPDATE] Checking for updates…');
+      autoUpdater.checkForUpdatesAndNotify();
+    }, 3000);
+
+    autoUpdater.on('update-available', (info) => {
+      console.log('[UPDATE] Update available:', info?.version || '');
+    });
+
+    autoUpdater.on('update-downloaded', async () => {
+      console.log('[UPDATE] Update downloaded. Prompting to install…');
+      const result = await dialog.showMessageBox({
+        type: 'info',
+        buttons: ['Restart now', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'Update Ready',
+        message: 'A new version has been downloaded.',
+        detail: 'Click "Restart now" to quit and install the update.',
+      });
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
+
+    autoUpdater.on('error', (err) => {
+      console.warn('[UPDATE] Auto-update error:', err?.message || err);
+    });
+  } catch (e) {
+    console.warn('[UPDATE] Failed to initialize auto-updater:', e?.message || e);
+  }
 
   ipcMain.handle('env:get', () => ({
     SUPABASE_URL: process.env.SUPABASE_URL || '',
