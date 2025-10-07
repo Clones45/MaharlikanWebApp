@@ -1,0 +1,502 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>View Members & Beneficiaries</title>
+
+  <!-- CSP: allow Supabase CDN + network -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' 'unsafe-inline' data: blob: filesystem:;
+                 img-src 'self' data: blob: file:;
+                 style-src 'self' 'unsafe-inline';
+                 script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net;
+                 connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.supabase.com blob:;">
+
+  <style>
+    /* === App background (same feel as the menu) === */
+    .app-bg {
+      position: fixed; inset: 0; z-index: -2;
+      background: #0b0c10;
+    }
+    .app-bg::after {
+      content: "";
+      position: absolute; inset: 0; z-index: -1;
+      background:
+        radial-gradient(ellipse at center, rgba(255,255,255,.05), rgba(255,255,255,0) 60%) center/120% 120% no-repeat,
+        url('../assets/logo-watermark.png') center/720px no-repeat;
+      opacity: .12;
+      filter: saturate(.9);
+      pointer-events: none;
+    }
+
+    /* === Page fills the window === */
+    html, body { height: 100%; }
+    body { margin: 0; font-family: "Segoe UI", Roboto, Arial, sans-serif; color: #e6edf3; background: transparent; }
+
+    .page {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      padding: 16px;
+    }
+
+    /* === Header === */
+    .page-header {
+      display: flex; align-items: center; justify-content: center;
+      margin: 2px 0 10px;
+    }
+    .page-header h1 {
+      margin: 0; padding: 6px 10px;
+      color: #f4f7fb; font-size: clamp(20px, 2.2vw, 28px); font-weight: 800;
+    }
+
+    /* === Card fills remaining height and shows content === */
+    .card {
+      width: min(1400px, 96vw);
+      margin: 0 auto;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 14px;
+      box-shadow: 0 12px 24px rgba(0,0,0,.25);
+      backdrop-filter: blur(8px) saturate(1.05);
+      display: flex; flex-direction: column;
+      min-height: 0;   /* let children flex */
+      flex: 1 1 auto;
+    }
+
+    /* === Toolbar (sticky inside the card) === */
+    .toolbar {
+      position: sticky; top: 0; z-index: 5;
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px;
+      background: rgba(11,12,16,.85);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      border-top-left-radius: 14px;
+      border-top-right-radius: 14px;
+      backdrop-filter: blur(6px);
+    }
+    .toolbar-left { margin-right: auto; }
+    .toolbar input[type="text"] {
+      width: clamp(200px, 24vw, 320px);
+      padding: 10px 12px;
+      border: 1px solid #2b3445; border-radius: 10px;
+      background: #0f1420; color: #e6edf3; font-size: 14px;
+    }
+    .toolbar input::placeholder { color: #94a3b8; }
+    .btn {
+      padding: 10px 16px; font-size: 14px; font-weight: 700;
+      background: #4f8cff; color: #fff; border: 0; border-radius: 10px; cursor: pointer;
+      box-shadow: 0 6px 16px rgba(79,140,255,.22);
+    }
+    .btn:hover { filter: brightness(1.08); }
+
+    /* === Table region flexes to fill the card and shows scrollbars === */
+    .table-wrap {
+      padding: 10px 12px 8px;
+      display: flex; flex-direction: column;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+    .scroll-x {
+      min-height: 0;
+      flex: 1 1 auto;
+      overflow: auto;                 /* visible scrollbars */
+      border-radius: 10px;
+      border: 1px solid #1f2a3a;
+      background: rgba(255,255,255,.02);
+    }
+
+    /* Optional: make scrollbars clearly visible on Windows */
+    .scroll-x::-webkit-scrollbar { height: 12px; width: 12px; }
+    .scroll-x::-webkit-scrollbar-thumb { background: #3b4a63; border-radius: 8px; }
+    .scroll-x::-webkit-scrollbar-track { background: #0f1420; }
+
+    /* === Table look & sticky header === */
+    table.grid {
+      width: 100%;
+      min-width: 1400px;                 /* horizontal scroll if narrower */
+      border-collapse: collapse;
+      color: #dce5f3;
+    }
+    table.grid thead th {
+      position: sticky; top: 0; z-index: 3;
+      background: #2f3949; color: #f8fafc;
+      padding: 10px; font-size: 13px;
+      border-bottom: 1px solid #263142;
+      text-align: left; white-space: nowrap;
+    }
+    table.grid td {
+      padding: 9px 10px; font-size: 13px; color: #e6edf3;
+      background: #0f1420; border-bottom: 1px solid #1b2534;
+    }
+    table.grid tbody tr:nth-child(even) td { background: #111827; }
+    table.grid tbody tr:hover td { background: #162033; }
+
+    /* Beneficiaries folding row */
+    .beneficiaries-row td { background:#0f1b31; padding: 0 0 8px; }
+
+    /* Footer */
+    .card-footer {
+      display: flex; justify-content: flex-end; padding: 10px 12px 14px;
+    }
+    .back {
+      display:inline-block; text-align:center;
+      background:#2d3748; color:#fff; padding:10px 20px;
+      border-radius:10px; text-decoration:none; font-weight:700;
+    }
+    .back:hover { background:#1f2937; }
+
+    /* Status text */
+    .muted { color:#9aa4b2; font-size: 13px; margin-left: 10px; }
+
+    /* === Print keeps your landscape table === */
+    @media print {
+      @page { size: A4 landscape; margin: 0.5cm; }
+      .app-bg, .page-header, .toolbar, .card-footer { display: none !important; }
+      .page { padding: 0 !important; }
+      .card { width: 100% !important; border: 0; border-radius: 0; box-shadow: none; }
+      .table-wrap { padding: 0 !important; }
+      .scroll-x { overflow: visible !important; border: 0 !important; }
+      table.grid { width: 100% !important; min-width: 100% !important; table-layout: fixed; font-size: 9px !important; }
+      table.grid thead th { background: #444 !important; color:#fff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      table.grid td, table.grid th { border: 1px solid #333 !important; padding: 4px 6px !important; }
+      .beneficiaries-row { display: table-row !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-bg"></div>
+
+  <div class="page">
+    <header class="page-header">
+      <h1>Maharlikan AssuredLife</h1>
+    </header>
+
+    <main class="card">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button id="toggleBeneficiariesBtn" class="btn">Show Beneficiaries</button>
+        </div>
+        <input id="searchInput" type="text" placeholder="Search members...">
+        <button id="printBtn" class="btn">Print Table</button>
+        <button id="refreshBtn" class="btn">Refresh</button>
+        <span id="statusText" class="muted"></span>
+      </div>
+
+      <div class="table-wrap">
+        <div class="scroll-x">
+          <table id="membersTable" class="grid">
+            <thead>
+              <tr>
+                <th>AF No</th>
+                <th>Last Name</th>
+                <th>First Name</th>
+                <th>Middle Name</th>
+                <th>Gender</th>
+                <th>Civil Status</th>
+                <th>Address</th>
+                <th>Zipcode</th>
+                <th>Birth Date</th>
+                <th>Birthplace</th>
+                <th>Nationality</th>
+                <th>Age</th>
+                <th>Height</th>
+                <th>Weight</th>
+                <th>Religion</th>
+                <th>Contact No.</th>
+                <th>Membership</th>
+                <th>Plan Type</th>
+                <th>Contracted Price</th>
+                <th>Date Joined</th>
+                <th>Balance</th>
+                <th>Casket Type</th>
+                <th>Occupation</th>
+                <th>Agent</th>
+              </tr>
+            </thead>
+            <tbody id="membersTbody">
+              <!-- rows injected by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <footer class="card-footer">
+        <a href="./index.html" class="btn">Menu</a>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Supabase CDN (non-module exposes window.supabase) -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <script>
+    // ------- Small helpers -------
+    const qs  = (s, r = document) => r.querySelector(s);
+    const qsa = (s, r = document) => Array.from(r.querySelectorAll(s));
+    const setStatus = (txt) => { const el = qs('#statusText'); if (el) el.textContent = txt || ''; };
+
+    let supabaseClient = null;
+    let env = null;
+
+    // Cached data
+    let MEMBERS = [];
+    let BENEFICIARIES_BY_MEMBER = new Map(); // member_id -> array
+    let AGENTS_BY_ID = new Map();
+    let showBeneficiaries = false;
+
+    // ------- Boot -------
+    window.addEventListener('DOMContentLoaded', init);
+
+    async function init() {
+      try {
+        // 1) Env via Electron preload (or window.__ENV__ as fallback)
+        if (window.electronAPI?.getEnv) {
+          try { env = await window.electronAPI.getEnv(); } catch {}
+        }
+        if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) {
+          if (window.__ENV__) env = window.__ENV__;
+        }
+        if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) {
+          setStatus('Missing Supabase environment.');
+          return;
+        }
+
+        // 2) Create client + check session
+        supabaseClient = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+          auth: { persistSession: true, autoRefreshToken: true },
+        });
+
+        const { data: { session }, error: sessErr } = await supabaseClient.auth.getSession();
+        if (sessErr) console.warn('[getSession]', sessErr);
+        if (!session) {
+          setStatus('Not signed in. Please log in again.');
+          return;
+        }
+
+        // 3) Wire UI
+        wireUI();
+
+        // 4) Load data
+        await refreshAll();
+      } catch (e) {
+        console.error('[init] error', e);
+        setStatus('Init failed: ' + (e.message || e));
+      }
+    }
+
+    function wireUI() {
+      qs('#printBtn')?.addEventListener('click', () => window.print());
+      qs('#refreshBtn')?.addEventListener('click', refreshAll);
+      qs('#searchInput')?.addEventListener('input', onSearch);
+      qs('#toggleBeneficiariesBtn')?.addEventListener('click', async () => {
+        showBeneficiaries = !showBeneficiaries;
+        const btn = qs('#toggleBeneficiariesBtn');
+        btn.textContent = showBeneficiaries ? 'Hide Beneficiaries' : 'Show Beneficiaries';
+
+        if (showBeneficiaries && BENEFICIARIES_BY_MEMBER.size === 0) {
+          setStatus('Loading beneficiaries…');
+          await loadBeneficiaries();
+        }
+        renderTable();
+      });
+    }
+
+    async function refreshAll() {
+      setStatus('Loading members…');
+      await Promise.all([loadAgents(), loadMembers()]);
+      if (showBeneficiaries) {
+        setStatus('Loading beneficiaries…');
+        await loadBeneficiaries();
+      }
+      renderTable();
+      setStatus('');
+    }
+
+    // ------- Data Loading -------
+    async function loadAgents() {
+      AGENTS_BY_ID.clear();
+      const { data, error } = await supabaseClient
+        .from('agents')
+        .select('id, lastname, firstname')
+        .order('lastname', { ascending: true });
+      if (error) {
+        console.error('[agents] ', error);
+        setStatus('Failed to load agents');
+        return;
+      }
+      (data || []).forEach(a => {
+        const name = [a.lastname || '', a.firstname || ''].filter(Boolean).join(', ').trim();
+        AGENTS_BY_ID.set(a.id, name || ('Agent #' + a.id));
+      });
+    }
+
+    async function loadMembers() {
+      MEMBERS = [];
+      // Pull relevant columns; adjust if you add/remove fields
+      const columns = [
+        'id','maf_no','last_name','first_name','middle_name','gender','civil_status',
+        'address','zipcode','birth_date','birthplace','nationality','age','height','weight',
+        'religion','occupation','membership','plan_type','contracted_price','date_joined',
+        'balance','casket_type','contact_number','agent_id'
+      ].join(',');
+
+      const { data, error } = await supabaseClient
+        .from('members')
+        .select(columns)
+        .order('last_name', { ascending: true })
+        .limit(2000);
+
+      if (error) {
+        console.error('[members] ', error);
+        setStatus('Failed to load members');
+        return;
+      }
+      MEMBERS = data || [];
+    }
+
+    async function loadBeneficiaries() {
+      BENEFICIARIES_BY_MEMBER.clear();
+
+      const { data, error } = await supabaseClient
+        .from('beneficiaries')
+        .select('member_id, relation, last_name, first_name, middle_name, birth_date, age, address');
+
+      if (error) {
+        console.error('[beneficiaries] ', error);
+        setStatus('Failed to load beneficiaries');
+        return;
+      }
+
+      (data || []).forEach(b => {
+        if (!BENEFICIARIES_BY_MEMBER.has(b.member_id)) {
+          BENEFICIARIES_BY_MEMBER.set(b.member_id, []);
+        }
+        BENEFICIARIES_BY_MEMBER.get(b.member_id).push(b);
+      });
+    }
+
+    // ------- Render -------
+    function esc(v) {
+  // Convert null, undefined, blank string, or 0 to N/A
+  if (v === null || v === undefined) return 'N/A';
+  if (typeof v === 'string') {
+    const trimmed = v.trim();
+    if (trimmed === '' || trimmed === '0' || trimmed.toLowerCase() === 'null') return 'N/A';
+    return trimmed;
+  }
+  if (typeof v === 'number') {
+    return v === 0 ? 'N/A' : String(v);
+  }
+  return String(v) || 'N/A';
+}
+
+function money(v) {
+  if (v === null || v === undefined || v === '' || Number(v) === 0) return 'N/A';
+  const n = Number(v);
+  return Number.isFinite(n)
+    ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : 'N/A';
+}
+
+    function renderTable() {
+      const tbody = qs('#membersTbody');
+      tbody.innerHTML = '';
+
+      const rows = MEMBERS;
+      const frag = document.createDocumentFragment();
+
+      rows.forEach(m => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${esc(m.maf_no)}</td>
+          <td>${esc(m.last_name)}</td>
+          <td>${esc(m.first_name)}</td>
+          <td>${esc(m.middle_name)}</td>
+          <td>${esc(m.gender)}</td>
+          <td>${esc(m.civil_status)}</td>
+          <td>${esc(m.address)}</td>
+          <td>${esc(m.zipcode)}</td>
+          <td>${esc(m.birth_date)}</td>
+          <td>${esc(m.birthplace)}</td>
+          <td>${esc(m.nationality)}</td>
+          <td>${esc(m.age)}</td>
+          <td>${esc(m.height)}</td>
+          <td>${esc(m.weight)}</td>
+          <td>${esc(m.religion)}</td>
+          <td>${esc(m.contact_number)}</td>
+          <td>${esc(m.membership)}</td>
+          <td>${esc(m.plan_type)}</td>
+          <td>${money(m.contracted_price)}</td>
+          <td>${esc(m.date_joined)}</td>
+          <td>${money(m.balance)}</td>
+          <td>${esc(m.casket_type)}</td>
+          <td>${esc(m.occupation)}</td>
+          <td>${AGENTS_BY_ID.get(m.agent_id) || ''}</td>
+        `;
+        frag.appendChild(tr);
+
+        // Beneficiaries row (toggle global)
+        if (showBeneficiaries) {
+          const btr = document.createElement('tr');
+          btr.className = 'beneficiaries-row';
+          const list = BENEFICIARIES_BY_MEMBER.get(m.id) || [];
+          btr.innerHTML = `
+            <td colspan="24">
+              <table class="grid" style="min-width:100%; border:0;">
+                <thead>
+                  <tr>
+                    <th>Relation</th>
+                    <th>Last Name</th>
+                    <th>First Name</th>
+                    <th>Middle Name</th>
+                    <th>Birth Date</th>
+                    <th>Age</th>
+                    <th>Address</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${
+                    list.length
+                      ? list.map(b => `
+                          <tr>
+                            <td>${esc(b.relation)}</td>
+                            <td>${esc(b.last_name)}</td>
+                            <td>${esc(b.first_name)}</td>
+                            <td>${esc(b.middle_name)}</td>
+                            <td>${esc(b.birth_date)}</td>
+                            <td>${esc(b.age)}</td>
+                            <td>${esc(b.address)}</td>
+                          </tr>
+                        `).join('')
+                      : `<tr><td colspan="7" style="background:#0f1828;">No beneficiaries</td></tr>`
+                  }
+                </tbody>
+              </table>
+            </td>`;
+          frag.appendChild(btr);
+        }
+      });
+
+      tbody.appendChild(frag);
+    }
+
+    // ------- Search (client-side filter) -------
+    function onSearch(e) {
+      const q = (e.target.value || '').toLowerCase().trim();
+      const tbody = qs('#membersTbody');
+      // Simple text search across concatenated row text.
+      qsa('tr', tbody).forEach(tr => {
+        // skip beneficiaries rows from search hide (pair them with member row)
+        if (tr.classList.contains('beneficiaries-row')) return;
+        const text = tr.textContent.toLowerCase();
+        tr.style.display = text.includes(q) ? '' : 'none';
+        // also hide the next beneficiaries row if the member row is hidden
+        const next = tr.nextElementSibling;
+        if (next && next.classList.contains('beneficiaries-row')) {
+          next.style.display = tr.style.display;
+        }
+      });
+    }
+  </script>
+</body>
+</html>

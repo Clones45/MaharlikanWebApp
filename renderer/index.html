@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Maharlikan Admin Desktop</title>
+  <link rel="stylesheet" href="./styles.css" />
+
+  <!-- CSP: allow Supabase CDN + network -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' 'unsafe-inline' data: blob: filesystem:;
+                 img-src 'self' data: blob: file:;
+                 style-src 'self' 'unsafe-inline';
+                 script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net;
+                 connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.supabase.com blob:;">
+
+  <!-- ✅ Fallback env (used only if preload's electronAPI is unavailable).
+       Put your real URL & anon key here. It's OK to ship anon key to clients. -->
+  <script>
+    window.__ENV__ = {
+      SUPABASE_URL: "https://YOUR_PROJECT_ID.supabase.co",
+      SUPABASE_ANON_KEY: "YOUR_SUPABASE_ANON_KEY"
+    };
+  </script>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="login-section" class="split-layout">
+    <section class="login-panel">
+      <div class="login-card">
+        <h2>Admin Login</h2>
+
+        <label>Username</label>
+        <input id="email" type="text" placeholder="Enter username" />
+
+        <label>Password</label>
+        <input id="password" type="password" placeholder="Enter password" />
+
+        <div class="row">
+          <label class="remember">
+          <input id="remember" type="checkbox" /> Remember me
+          </label>
+        </div>
+
+        <button id="loginBtn" type="button" class="primary">Sign In</button>
+        <p id="loginMsg" class="muted" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="brand-panel">
+      <img id="login-mark" src="../assets/logo-watermark.png" alt="Maharlikan Logo" class="brand-logo">
+      <h1 class="brand-title">Maharlikan AssuredLife</h1>
+      <p class="brand-sub">Layunin ng Maharlikan AssuredLife ay <b>ASSURED</b> ka!</p>
+    </section>
+  </div>
+
+  <!-- DASHBOARD -->
+  <section id="dashboard" class="hidden">
+    <div class="menu-bg"></div>
+
+    <header class="app-header">
+      <h1>Maharlikan AssuredLife</h1>
+      <div class="header-right">
+        <span id="user-info"></span>
+      </div>
+    </header>
+
+    <main class="menu-wrap">
+      <section class="menu-card">
+        <h2 class="menu-title">Maharlikan<br/>AssuredLife</h2>
+        <div class="menu-divider"></div>
+
+        <div class="menu-buttons">
+          <button type="button" class="menu-btn" id="btnNewMember">New Member</button>
+          <button type="button" class="menu-btn" id="btnViewMembers">View Members</button>
+          <button type="button" class="menu-btn" id="btnAddCollections">Add Collections</button>
+          <button type="button" class="menu-btn" id="btnViewCollections">View Collections</button>
+          <button type="button" class="menu-btn" id="btnEditMembers">Edit Members Info</button>
+          <button type="button" class="menu-btn" id="btnSoa">S.O.A</button>
+          <button type="button" class="menu-btn" id="btnRegisterAgent">Register Agent</button>
+          <button type="button" class="menu-btn danger" id="btnMenuLogout">Logout</button>
+        </div>
+
+        <!-- Members table (shown when clicking View Members) -->
+        <div id="view-members" class="view hidden">
+          <div class="row" style="margin:12px 0;">
+            <input id="m-search" type="text" placeholder="Search MAF # / Name" />
+            <span id="m-msg" class="muted" style="margin-left:8px;"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead id="m-thead"></thead>
+              <tbody id="m-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <!-- Supabase CDN (non-module → exposes window.supabase) -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>View Collections — Maharlikan AssuredLife</title>
+
+  <!-- Reuse your global desktop styles (same as View Members) -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Local scoped tweaks just for this page -->
+  <style>
+  /* ===== Scoped to this page only ===== */
+#collections-page { padding: 24px; }
+#collections-page .card {
+  box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.12));
+  border-radius: 16px;
+  background:#fff;
+}
+#collections-page .header { display:flex; align-items:center; gap:16px; margin-bottom:14px; }
+#collections-page .brand { font-weight:700; font-size:20px; }
+#collections-page .toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+#collections-page .filters { display:flex; gap:8px; align-items:center; }
+#collections-page select, #collections-page button {
+  height:38px; border-radius:8px; padding:0 10px; border:1px solid #d0d7e2; font-size:14px;
+}
+#collections-page .btn { background:#0b4d87; color:#fff; border:0; cursor:pointer; }
+#collections-page .btn:hover { filter:brightness(0.95); }
+#collections-page .btn.secondary { background:#28a745; }
+#collections-page .btn.tertiary { background:#ff9800; }
+#collections-page .content { padding:16px; }
+
+/* Scrollable table area */
+#collections-page .table-wrap {
+  max-height: 520px;           /* adjust as needed */
+  overflow-y: auto;
+  border: 1px solid #d0d7e2;
+  border-radius: 10px;
+  background:#fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+/* Table + typography */
+#collections-page table { width:100%; border-collapse:collapse; background:#fff; }
+#collections-page th, #collections-page td {
+  border-bottom:1px solid #edf1f7; padding:10px 12px; text-align:left;
+}
+#collections-page thead th {
+  background:#0b4d87; color:#fff; position:sticky; top:0; z-index:1;
+  letter-spacing:.02em;
+}
+#collections-page tbody td { color:#1a2433; }          /* stronger contrast */
+#collections-page tbody tr:nth-child(even) { background:#f6f9fc; } /* zebra */
+#collections-page tbody tr:hover { background:#e9f2fb; }           /* hover */
+#collections-page .muted { color:#6b7280; }
+#collections-page .right { text-align:right; color:#0b4d87; font-weight:600; }
+#collections-page .sum { font-weight:700; }
+
+/* Nice blue scrollbar (WebKit/Chromium/Electron) */
+#collections-page .table-wrap::-webkit-scrollbar { width: 10px; }
+#collections-page .table-wrap::-webkit-scrollbar-track { background:#eef3f8; border-radius:10px; }
+#collections-page .table-wrap::-webkit-scrollbar-thumb { background:#0b4d87; border-radius:10px; }
+#collections-page .table-wrap::-webkit-scrollbar-thumb:hover { background:#0a3f70; }
+
+/* Empty/info rows */
+#collections-page .empty {
+  padding:16px; background:#fff3cd; border:1px solid #ffe08a; border-radius:12px; color:#856404;
+}
+
+/* Footer actions */
+#collections-page .footer-actions { display:flex; gap:10px; margin-top:12px; }
+#collections-page .banner { display:flex; align-items:center; gap:10px; }
+#collections-page .banner img { width:120px; height:auto; }
+
+@media print {
+  #collections-page .toolbar, #collections-page .footer-actions, a.back { display:none !important; }
+  #collections-page thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #collections-page .table-wrap { max-height:none; overflow:visible; box-shadow:none; border:none; }
+}
+
+
+
+
+
+
+
+  </style>
+
+  <!-- jsPDF + AutoTable for export (these can be deferred) -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Supabase SDK MUST load before you create the client (no defer here) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Initialize Supabase client AFTER SDK is available -->
+  <script>
+    window.__SB_URL = "https://agyueadcymdopgihtckc.supabase.co";
+    window.__SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFneXVlYWRjeW1kb3BnaWh0Y2tjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzA2NjYsImV4cCI6MjA3NDkwNjY2Nn0.EBYfJ9RTkeGLQptG3uWaOsFMIz9DySu3uhaOlzgeeMw";
+    // Create a single global client used by all pages
+    window.SB = window.SB || supabase.createClient(window.__SB_URL, window.__SB_KEY);
+  </script>
+
+  <!-- Page logic -->
+  <script type="module" defer src="./view-collections.js"></script>
+</head>
+<body>
+  <div id="collections-page" class="page">
+    <div class="card">
+      <div class="content">
+        <div class="header">
+          <div class="banner">
+            <!-- fix path to your assets folder -->
+            <img src="assets/logo-watermark.png" alt="Maharlikan AssuredLife Logo">
+            <div>
+              <div class="brand">Monthly Collections</div>
+              <div class="muted" id="periodLabel">Loading period…</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="filters">
+            <label for="monthSel" class="muted">Month</label>
+            <select id="monthSel" aria-label="Select month"></select>
+
+            <label for="yearSel" class="muted">Year</label>
+            <select id="yearSel" aria-label="Select year"></select>
+
+            <button id="applyBtn" class="btn">Show Collections</button>
+          </div>
+
+          <div class="actions">
+            <button id="exportBtn" class="btn secondary">Export to PDF</button>
+            <button id="printBtn" class="btn tertiary">Print Page</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="collectionsTable">
+            <thead>
+              <tr>
+                <th>AF No</th>
+                <th>Last Name</th>
+                <th>First Name</th>
+                <th>Address</th>
+                <th>Plan Type</th>
+                <th class="right">Amount</th>
+                <th>Date Collected</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr><td colspan="7" class="muted">Loading…</td></tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <th colspan="5" class="right">Total</th>
+                <th class="right sum" id="totalCell">0.00</th>
+                <th></th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="footer-actions">
+          <a href="tabs.html" class="btn back">Menu</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Statement of Account — Maharlikan AssuredLife</title>
+
+  <!-- Reuse your global desktop styles -->
+  <link rel="stylesheet" href="./styles.css" />
+
+  <!-- Page-scoped CSS -->
+  <style>
+    /* ===== Scoped to this page only ===== */
+    #soa-page { padding: 24px; }
+    #soa-page .card {
+      box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.12));
+      border-radius: 16px;
+      background: #fff;
+    }
+    #soa-page .content { padding: 16px; }
+
+    /* Header */
+    #soa-page .header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+    #soa-page .banner { display:flex; align-items:center; gap:10px; }
+    #soa-page .banner img { width:120px; height:auto; }
+    #soa-page h1 { font-size:22px; font-weight:700; color:#0b1f3a; margin:0 0 4px; }
+    #soa-page .muted { color:#334155; font-size:15px; }
+
+    /* Toolbar / search */
+    #soa-page .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px; }
+    #soa-page .toolbar .grow { flex:1 1 360px; }
+    #soa-page .btn { height:38px; padding:0 14px; border-radius:8px; border:0; cursor:pointer; background:#0b4d87; color:#fff; }
+    #soa-page .btn:hover { filter:brightness(0.95); }
+    #soa-page .btn.secondary { background:#28a745; }
+    #soa-page .btn.tertiary { background:#ff9800; }
+
+    /* Search input */
+    #searchInput {
+      background:#fff;
+      border:1.8px solid #c7d3e3;
+      border-radius:8px;
+      padding:10px 14px;
+      font-size:15px;
+      color:#0f172a;
+      width:100%;
+      transition: all .2s ease;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,.03);
+    }
+    #searchInput::placeholder { color:#94a3b8; font-style:italic; }
+    #searchInput:focus {
+      outline:none; border-color:#0b4d87;
+      box-shadow:0 0 0 3px rgba(11,77,135,.15);
+    }
+
+    /* Scrollable content box */
+    #soa-page .sheet {
+      margin-top:8px;
+      padding:12px;
+      background:#fff;
+      border:1px solid #d0d7e2;
+      border-radius:10px;
+      max-height:65vh;
+      overflow-y:auto;
+      box-shadow:0 4px 12px rgba(0,0,0,.05);
+      scroll-behavior:smooth;
+    }
+
+    /* Custom Scrollbar */
+    #soa-page .sheet::-webkit-scrollbar {
+      width: 10px;
+    }
+    #soa-page .sheet::-webkit-scrollbar-track {
+      background: #eef3f8;
+      border-radius: 10px;
+    }
+    #soa-page .sheet::-webkit-scrollbar-thumb {
+      background: #0b4d87;
+      border-radius: 10px;
+    }
+    #soa-page .sheet::-webkit-scrollbar-thumb:hover {
+      background: #0a3f70;
+    }
+
+    /* Tables */
+    .summary-table, .tx-table { width:100%; border-collapse:collapse; margin:12px 0; }
+    .summary-table th, .summary-table td,
+    .tx-table th, .tx-table td {
+      border:1px solid #e5eaf1;
+      padding:10px;
+      color:#0f172a;
+    }
+    .summary-table th, .tx-table th {
+      background:#0b4d87;
+      color:#fff;
+      text-align:center;
+      font-weight:700;
+    }
+    .summary-table td, .tx-table td { text-align:center; }
+
+    /* Right details box */
+    .details {
+      border:1.8px solid #c7d3e3;
+      border-radius:10px;
+      padding:12px;
+      background:#f9fbfd;
+      max-width:320px;
+      color:#0f172a;
+      box-shadow:0 2px 6px rgba(0,0,0,0.05);
+    }
+    .details p { margin:6px 0; color:#1e293b; }
+    .details strong { color:#0b4d87; font-weight:600; }
+
+    .sheet-grid { display:grid; grid-template-columns: 2fr 1fr; gap:14px; }
+    .sheet-grid .full { grid-column: 1 / -1; }
+
+    /* Splash messages */
+    .splash{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.15);z-index:99999;opacity:0;pointer-events:none;transition:opacity .25s ease}
+    .splash.show{opacity:1;pointer-events:auto}
+    .splash-box{min-width:320px;max-width:560px;padding:18px 20px;border-radius:14px;color:#fff;background:#28a745;box-shadow:0 20px 60px rgba(0,0,0,.25);transform:scale(.96);transition:transform .25s ease}
+    .splash.show .splash-box{transform:scale(1)}
+    .splash.error .splash-box{background:#e53935}
+    .splash h4{margin:0 0 6px;font-size:18px}
+    .splash p{margin:0;opacity:.95}
+
+    /* Muted text */
+    .muted, .no-payments {
+      color:#1e293b;
+      font-size:15px;
+      font-style:italic;
+    }
+
+    @media (max-width: 980px) {
+      .sheet-grid { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      .toolbar, #exportBtn, #printBtn { display:none !important; }
+      .sheet { max-height:none; overflow:visible; box-shadow:none; border:0; }
+      .summary-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .tx-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+
+  <!-- jsPDF + AutoTable for export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Initialize Supabase -->
+  <script>
+    (function initSupabase(){
+      if (window.SB) return;
+      const url = "https://agyueadcymdopgihtckc.supabase.co";
+      const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFneXVlYWRjeW1kb3BnaWh0Y2tjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzA2NjYsImV4cCI6MjA3NDkwNjY2Nn0.EBYfJ9RTkeGLQptG3uWaOsFMIz9DySu3uhaOlzgeeMw";
+      window.SB = supabase.createClient(url, key);
+    })();
+  </script>
+
+  <!-- Logic -->
+  <script defer src="./soa.js"></script>
+</head>
+<body>
+  <div id="soa-page" class="page">
+    <div class="card">
+      <div class="content">
+
+        <div class="header">
+          <div class="banner">
+            <img src="../assets/logo-watermark.png" alt="Maharlikan Logo" />
+            <div>
+              <h1>Statement of Account</h1>
+              <div class="muted">Search, view, and print member statement</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="grow">
+            <input id="searchInput" type="text" placeholder="🔎 Enter AF / MAF No, First or Last Name" autocomplete="off"/>
+          </div>
+          <button id="searchBtn" class="btn">Search</button>
+          <button id="exportBtn" class="btn secondary">Export PDF</button>
+          <button id="printBtn" class="btn tertiary">Print Page</button>
+        </div>
+
+        <div id="sheet" class="sheet" aria-live="polite">
+          <div class="muted">Enter a member AF/MAF No or name to view SOA.</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</body>
+</html>
