@@ -9,7 +9,8 @@
     "dev": "electron .",
     "start": "electron .",
     "package": "npx electron-builder -w nsis",
-    "portable": "npx electron-builder --win portable"
+    "portable": "npx electron-builder --win portable",
+    "release": "npx electron-builder -w nsis --publish always"
   },
   "build": {
     "appId": "com.maharlikan.admin",
@@ -33,15 +34,22 @@
       "icon": "assets/icon.ico"
     },
     "nsis": {
-      "oneClick": false,                          
+      "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,             
-      "createStartMenuShortcut": true,            
-      "shortcutName": "Maharlikan Admin",         
-      "uninstallDisplayName": "Maharlikan Admin", 
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Maharlikan Admin",
+      "uninstallDisplayName": "Maharlikan Admin",
       "artifactName": "Maharlikan_Admin_Setup_${version}.exe"
     },
-    "artifactName": "Maharlikan_Admin_${version}_${arch}.${ext}"
+    "artifactName": "Maharlikan_Admin_${version}_${arch}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Clones45",
+        "repo": "MaharlikanWebApp"
+      }
+    ]
   },
   "devDependencies": {
     "electron": "30.5.1",
