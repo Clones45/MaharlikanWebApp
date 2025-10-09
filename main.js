@@ -2,20 +2,13 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-
-// ⬇️ NEW: auto-updater (uses your GitHub Releases per package.json "publish")
 const { autoUpdater } = require('electron-updater');
 
 // --- Safe .env loader (dev + packaged) ---
 (function loadEnv() {
   try {
-    // 1) Dev: project root next to main.js
     const devEnv = path.join(__dirname, '.env');
-    // 2) Packaged: <app folder>/resources/.env
-    const packedEnv = process.resourcesPath
-      ? path.join(process.resourcesPath, '.env')
-      : null;
-
+    const packedEnv = process.resourcesPath ? path.join(process.resourcesPath, '.env') : null;
     const candidates = [devEnv, packedEnv].filter(Boolean);
 
     for (const p of candidates) {
@@ -50,11 +43,9 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
 
-  // ⬇️ NEW: trigger auto-update a few seconds after launch
+  // Auto-update
   try {
-    // optional: auto download when found (default true)
     autoUpdater.autoDownload = true;
-
     setTimeout(() => {
       console.log('[UPDATE] Checking for updates…');
       autoUpdater.checkForUpdatesAndNotify();
@@ -75,9 +66,7 @@ app.whenReady().then(() => {
         message: 'A new version has been downloaded.',
         detail: 'Click "Restart now" to quit and install the update.',
       });
-      if (result.response === 0) {
-        autoUpdater.quitAndInstall();
-      }
+      if (result.response === 0) autoUpdater.quitAndInstall();
     });
 
     autoUpdater.on('error', (err) => {
@@ -87,12 +76,27 @@ app.whenReady().then(() => {
     console.warn('[UPDATE] Failed to initialize auto-updater:', e?.message || e);
   }
 
+  // ✅ Expose env to renderer (used by your preload/renderer to call Edge Functions)
   ipcMain.handle('env:get', () => ({
     SUPABASE_URL: process.env.SUPABASE_URL || '',
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
+    ADMIN_PORTAL_SECRET: process.env.ADMIN_PORTAL_SECRET || '', // <-- add this
   }));
 
+  // (Optional) Harden which files can be opened
+  const ALLOWED_RENDER_FILES = new Set([
+    'index.html',
+    'register-agent.html',
+    'edit-member.html',
+    'soa!.html',
+    // add other renderer files you actually use
+  ]);
+
   ipcMain.on('open-window', (_evt, file) => {
+    if (!ALLOWED_RENDER_FILES.has(file)) {
+      console.warn('[MAIN] Blocked attempt to open:', file);
+      return;
+    }
     const child = new BrowserWindow({
       width: 1400,
       height: 900,

@@ -1,7 +1,6 @@
-/* ============================
-   Helpers (toast / splash / hash)
-   ============================ */
-
+/**********************
+ * Helpers / UI sugar *
+ **********************/
 function showSplash(title, msg, type = "success") {
   const splash = document.getElementById("splash");
   const titleEl = document.getElementById("splashTitle");
@@ -23,10 +22,9 @@ function setBtnBusy(btn, busy) {
   btn.style.opacity = busy ? "0.7" : "1";
 }
 
-/** Safe, universal password hasher.
- *  1) If bcryptjs is available (window.bcrypt), use bcrypt.hashSync with saltRounds=10
- *  2) Otherwise fallback to SHA-256 (not ideal, but prevents runtime errors)
- */
+/********************
+ * Password hashing *
+ ********************/
 async function hashPassword(plain) {
   if (!plain || typeof plain !== "string") {
     throw new Error("Invalid password");
@@ -35,54 +33,52 @@ async function hashPassword(plain) {
     if (window.bcrypt && typeof window.bcrypt.hashSync === "function") {
       return window.bcrypt.hashSync(plain, 10);
     }
-  } catch (e) {
+  } catch (_) {
     // fall through to SHA-256
   }
-  // Fallback: SHA-256 (avoid runtime failure if bcrypt isn't loaded)
   const enc = new TextEncoder().encode(plain);
   const buf = await crypto.subtle.digest("SHA-256", enc);
-  const arr = Array.from(new Uint8Array(buf));
-  return arr.map(b => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-/* ============================
-   DOM elements
-   ============================ */
-
-// New Agent & Account
+/***********************
+ * DOM elements / refs *
+ ***********************/
 const na = {
-  lastname: document.getElementById("na-lastname"),
+  lastname:  document.getElementById("na-lastname"),
   firstname: document.getElementById("na-firstname"),
-  middlename: document.getElementById("na-middlename"),
-  address: document.getElementById("na-address"),
+  middlename:document.getElementById("na-middlename"),
+  address:   document.getElementById("na-address"),
   birthdate: document.getElementById("na-birthdate"),
-  position: document.getElementById("na-position"),
-  username: document.getElementById("na-username"),
-  role: document.getElementById("na-role"),
-  password: document.getElementById("na-password"),
-  confirm: document.getElementById("na-confirm"),
+  position:  document.getElementById("na-position"),
+  username:  document.getElementById("na-username"),
+  role:      document.getElementById("na-role"),
+  password:  document.getElementById("na-password"),
+  confirm:   document.getElementById("na-confirm"),
   createBtn: document.getElementById("btnCreateNew"),
 };
 
-// Attach to Existing Agent
 const ex = {
-  agent: document.getElementById("ex-agent"),
+  agent:    document.getElementById("ex-agent"),
   username: document.getElementById("ex-username"),
-  role: document.getElementById("ex-role"),
+  role:     document.getElementById("ex-role"),
   password: document.getElementById("ex-password"),
-  confirm: document.getElementById("ex-confirm"),
-  attachBtn: document.getElementById("btnAttachAccount"),
+  confirm:  document.getElementById("ex-confirm"),
+  attachBtn:document.getElementById("btnAttachAccount"),
 };
 
-// Reset Password
 const rp = {
-  account: document.getElementById("rp-account"),
+  account:  document.getElementById("rp-account"),
   password: document.getElementById("rp-password"),
-  confirm: document.getElementById("rp-confirm"),
+  confirm:  document.getElementById("rp-confirm"),
   resetBtn: document.getElementById("btnResetPassword"),
 };
 
-// Password eye toggles (any element with data-toggle="pw")
+/****************************
+ * Show/Hide password eyes  *
+ ****************************/
 document.querySelectorAll('[data-toggle="pw"]').forEach(btn => {
   btn.addEventListener("click", () => {
     const targetId = btn.getAttribute("data-target");
@@ -92,10 +88,43 @@ document.querySelectorAll('[data-toggle="pw"]').forEach(btn => {
   });
 });
 
-/* ============================
-   Load dropdowns
-   ============================ */
+/************************************
+ * Supabase helpers for edge calls  *
+ ************************************/
 
+// Read admin secret from env (preload) or fallback
+const ADMIN_SECRET =
+  (window.__ENV__ && window.__ENV__.ADMIN_PORTAL_SECRET) || "LOVE";
+
+/**
+ * Call the smart-endpoint Edge Function via the Supabase client.
+ * This ensures the Authorization header is correct (no 401).
+ * @param {object} body - JSON body to send: { username?, password, role, agent_id? }
+ */
+async function createAccountViaEdge(body) {
+  if (!window.SB || !window.SB.functions) {
+    throw new Error("Supabase client not ready.");
+  }
+
+  const { data, error } = await SB.functions.invoke("smart-endpoint", {
+    headers: { "x-admin-secret": ADMIN_SECRET },
+    body
+  });
+
+  if (error) {
+    // Surface server message if present
+    throw new Error(error.message || "Edge function error");
+  }
+  // Our function returns either a health check object OR { ok:true, user_id, agent_id }
+  if (data && data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+}
+
+/********************
+ * Load dropdowns   *
+ ********************/
 async function loadAgents() {
   const sel = ex.agent;
   if (!sel) return;
@@ -120,7 +149,7 @@ async function loadAgents() {
       sel.appendChild(opt);
     });
   } catch (err) {
-    console.error("[loadAgents] ", err);
+    console.error("[loadAgents]", err);
     sel.innerHTML = '<option value="">Cannot load agents</option>';
   }
 }
@@ -131,7 +160,6 @@ async function loadAccounts() {
 
   sel.innerHTML = '<option value="">Loading…</option>';
   try {
-    // We list accounts by username + (optionally) agent_id
     const { data, error } = await SB.from("users_profile")
       .select("user_id, username, agent_id")
       .order("username", { ascending: true });
@@ -145,23 +173,21 @@ async function loadAccounts() {
     sel.innerHTML = "";
     data.forEach(u => {
       const opt = document.createElement("option");
-      opt.value = u.user_id; // for update
+      opt.value = u.user_id;
       opt.textContent = u.username || `(no username)`;
       sel.appendChild(opt);
     });
   } catch (err) {
-    console.error("[loadAccounts] ", err);
+    console.error("[loadAccounts]", err);
     sel.innerHTML = '<option value="">Cannot load accounts</option>';
   }
 }
 
-/* ============================
-   Actions
-   ============================ */
+/********************************
+ * Actions (Create / Attach / Reset)
+ ********************************/
 
-/** Create brand new AGENT row and a linked users_profile account.
- *  IMPORTANT: we DO NOT send user_id -> DB default generates it.
- */
+// NEW AGENT & ACCOUNT (Agent row + account via Edge)
 async function onCreateNew() {
   if (!na.createBtn) return;
   setBtnBusy(na.createBtn, true);
@@ -181,14 +207,14 @@ async function onCreateNew() {
       throw new Error("Password must be at least 6 characters.");
     }
 
-    // 1) Insert into AGENTS
+    // 1) Create agent row first (same as before)
     const agentPayload = {
-      lastname: na.lastname.value.trim(),
+      lastname:  na.lastname.value.trim(),
       firstname: na.firstname.value.trim(),
-      middlename: na.middlename.value.trim() || null,
-      address: na.address.value.trim() || null,
+      middlename:na.middlename.value.trim() || null,
+      address:   na.address.value.trim() || null,
       birthdate: na.birthdate.value || null,
-      position: na.position.value.trim() || null,
+      position:  na.position.value.trim() || null,
     };
 
     const { data: agentIns, error: agentErr } = await SB
@@ -201,46 +227,35 @@ async function onCreateNew() {
     const agentId = agentIns?.id;
     if (!agentId) throw new Error("Failed to create agent (no id returned).");
 
-    // 2) Create users_profile (omit user_id -> DB default)
-    const password_hash = await hashPassword(na.password.value);
-    const { error: profErr } = await SB
-      .from("users_profile")
-      .insert({
-        // user_id omitted on purpose -> DB default gen_random_uuid()
-        username: na.username.value.trim(),
-        role: na.role.value || "agent",
-        agent_id: agentId,
-        display_name: `${agentIns.firstname || ""} ${agentIns.lastname || ""}`.trim(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        // your schema may not have password_hash column,
-        // store into a column you chose for credential (if any).
-        // If you don't have one (only demo), comment this out or add a column.
-        password_hash,
-      });
-
-    if (profErr) throw profErr;
+    // 2) Create account via Edge function (ensures Authorization + secret)
+    const body = {
+      username: na.username.value.trim(),
+      password: na.password.value,
+      role:     na.role.value || "agent",
+      agent_id: agentId
+    };
+    const result = await createAccountViaEdge(body);
+    if (!result || !result.ok) {
+      throw new Error(result?.error || "Edge function did not return ok");
+    }
 
     showSplash("Created", "Agent & account created successfully.", "success");
 
-    // refresh accounts dropdown so it appears in reset list
     await loadAccounts();
 
-    // optional: clear minimal fields
+    // clear form
     na.username.value = "";
     na.password.value = "";
-    na.confirm.value = "";
+    na.confirm.value  = "";
   } catch (err) {
-    console.error("[onCreateNew] ", err);
+    console.error("[onCreateNew]", err);
     showSplash("Create Failed", err.message || "Unable to create account.", "error");
   } finally {
     setBtnBusy(na.createBtn, false);
   }
 }
 
-/** Attach a new users_profile account to an EXISTING agent.
- *  We still omit user_id to rely on DB default.
- */
+// ATTACH ACCOUNT TO EXISTING AGENT (via Edge)
 async function onAttachAccount() {
   if (!ex.attachBtn) return;
   setBtnBusy(ex.attachBtn, true);
@@ -255,37 +270,34 @@ async function onAttachAccount() {
       throw new Error("Password must be at least 6 characters.");
     }
 
-    const password_hash = await hashPassword(ex.password.value);
-    const payload = {
-      // user_id omitted (DB default)
+    const body = {
       username: ex.username.value.trim(),
-      role: ex.role.value || "agent",
-      agent_id: Number(ex.agent.value),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      password_hash,
+      password: ex.password.value,
+      role:     ex.role.value || "agent",
+      agent_id: Number(ex.agent.value)
     };
 
-    const { error } = await SB.from("users_profile").insert(payload);
-    if (error) throw error;
+    const result = await createAccountViaEdge(body);
+    if (!result || !result.ok) {
+      throw new Error(result?.error || "Edge function did not return ok");
+    }
 
     showSplash("Created", "Account attached to agent.", "success");
 
-    // Refresh accounts dropdown for reset section
     await loadAccounts();
 
     ex.username.value = "";
     ex.password.value = "";
-    ex.confirm.value = "";
+    ex.confirm.value  = "";
   } catch (err) {
-    console.error("[onAttachAccount] ", err);
+    console.error("[onAttachAccount]", err);
     showSplash("Create Failed", err.message || "Unable to attach account.", "error");
   } finally {
     setBtnBusy(ex.attachBtn, false);
   }
 }
 
-/** Reset password for an existing users_profile row */
+// RESET PASSWORD (same approach as before — updates users_profile)
 async function onResetPassword() {
   if (!rp.resetBtn) return;
   setBtnBusy(rp.resetBtn, true);
@@ -311,19 +323,18 @@ async function onResetPassword() {
     showSplash("Password Reset", "Password updated successfully.", "success");
 
     rp.password.value = "";
-    rp.confirm.value = "";
+    rp.confirm.value  = "";
   } catch (err) {
-    console.error("[onResetPassword] ", err);
+    console.error("[onResetPassword]", err);
     showSplash("Reset Failed", err.message || "Unable to reset password.", "error");
   } finally {
     setBtnBusy(rp.resetBtn, false);
   }
 }
 
-/* ============================
-   Wire events + init
-   ============================ */
-
+/****************
+ * Boot / wire  *
+ ****************/
 window.addEventListener("DOMContentLoaded", async () => {
   if (!window.SB) {
     console.warn("Supabase client (SB) not found on window. Check init in HTML.");
@@ -331,10 +342,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // load dropdown data
   await Promise.all([loadAgents(), loadAccounts()]);
-
-  // hook up buttons
   na.createBtn?.addEventListener("click", onCreateNew);
   ex.attachBtn?.addEventListener("click", onAttachAccount);
   rp.resetBtn?.addEventListener("click", onResetPassword);
