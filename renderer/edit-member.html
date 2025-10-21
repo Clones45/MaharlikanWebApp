@@ -20,20 +20,39 @@
 }
 
 /* === Header === */
+#edit-member-page .header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between; /* ✅ allows right-aligned home button */
+  margin-bottom:12px;
+}
 #edit-member-page .header h1 {
   font-size: 22px;
   font-weight: 700;
-  color: #1e293b; /* darker navy gray-blue */
+  color: #1e293b;
   margin-bottom: 4px;
 }
 #edit-member-page .header p {
   font-size: 15px;
-  color: #475569; /* subtle gray */
+  color: #475569;
 }
+
+/* ✅ Home Button Style */
+.home-btn {
+  background:#0b4d87;
+  color:#fff;
+  border:0;
+  border-radius:8px;
+  padding:8px 14px;
+  font-weight:600;
+  cursor:pointer;
+  transition:filter .2s ease;
+}
+.home-btn:hover { filter:brightness(0.95); }
 
 /* === Search Input === */
 #searchInput {
-  background: #ffffff; /* clean white */
+  background: #ffffff;
   border: 1.8px solid #c7d3e3;
   border-radius: 8px;
   padding: 10px 14px;
@@ -43,12 +62,10 @@
   transition: all 0.2s ease;
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
 }
-
 #searchInput::placeholder {
   color: #94a3b8;
   font-style: italic;
 }
-
 #searchInput:focus {
   outline: none;
   border-color: #0b4d87;
@@ -57,7 +74,6 @@
 
 /* === Rest of the styling === */
 #edit-member-page .content { padding: 16px; }
-#edit-member-page .header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
 #edit-member-page .banner { display:flex; align-items:center; gap:10px; }
 #edit-member-page .banner img { width:120px; height:auto; }
 #edit-member-page .brand { font-weight:700; font-size:20px; color:#1e293b; }
@@ -155,7 +171,6 @@ textarea { min-height: 80px; padding: 10px; }
 @media (max-width: 860px) {
   .grid, .bene-grid { grid-template-columns: 1fr; }
 }
-
   </style>
 
   <!-- Supabase SDK first (no defer) -->
@@ -163,13 +178,12 @@ textarea { min-height: 80px; padding: 10px; }
 
   <!-- Initialize Supabase client (global) -->
   <script>
-    // Replace with your actual values if needed
     const SB_URL = "https://agyueadcymdopgihtckc.supabase.co";
     const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFneXVlYWRjeW1kb3BnaWh0Y2tjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzA2NjYsImV4cCI6MjA3NDkwNjY2Nn0.EBYfJ9RTkeGLQptG3uWaOsFMIz9DySu3uhaOlzgeeMw";
     window.SB = window.SB || supabase.createClient(SB_URL, SB_ANON);
   </script>
 
-  <!-- Page logic (added after HTML in body for faster paint) -->
+  <!-- Page logic -->
   <script type="module" defer src="./edit-member.js"></script>
 </head>
 <body>
@@ -185,6 +199,9 @@ textarea { min-height: 80px; padding: 10px; }
               <div class="muted">Search, update, and manage beneficiaries</div>
             </div>
           </div>
+
+          <!-- ✅ Home / Back Button -->
+          <button class="home-btn" onclick="window.location.href='index.html'">🏠 Home</button>
         </div>
 
         <!-- Search toolbar -->
@@ -196,7 +213,6 @@ textarea { min-height: 80px; padding: 10px; }
 
         <!-- Scrollable form area -->
         <div class="form-wrap">
-          <!-- Hidden until a member is loaded -->
           <form id="memberForm" class="hidden" novalidate>
             <input type="hidden" id="member_id" name="id" />
 
@@ -354,7 +370,6 @@ textarea { min-height: 80px; padding: 10px; }
             </div>
           </form>
 
-          <!-- Placeholder shown before any search -->
           <div id="placeholder" class="muted">Search for a member to begin editing.</div>
         </div>
       </div>

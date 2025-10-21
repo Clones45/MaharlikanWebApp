@@ -17,10 +17,23 @@
     }
     #reg-agent-page .content { padding: 20px; }
 
-    .header { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+    .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .banner { display:flex; align-items:center; gap:12px; }
     .banner img { width:120px; height:auto; }
     h1 { font-size:22px; font-weight:700; color:#0b1f3a; margin:0 0 4px; }
     .muted { color:#334155; }
+
+    .home-btn {
+      background:#0b4d87;
+      color:#fff;
+      border:0;
+      border-radius:8px;
+      padding:8px 14px;
+      font-weight:600;
+      cursor:pointer;
+      transition:filter .2s ease;
+    }
+    .home-btn:hover { filter:brightness(0.95); }
 
     .wrap { display:grid; gap:16px; grid-template-columns: 1fr; overflow-y:auto; }
 
@@ -124,7 +137,7 @@
 <!-- Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<!-- bcryptjs: load BEFORE your page JS, no defer -->
+<!-- bcryptjs -->
 <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
 
 <!-- Initialize Supabase -->
@@ -139,9 +152,10 @@
   })();
 </script>
 
-<!-- Your page logic (can be defer) -->
+<!-- Page JS -->
 <script defer src="./register-agent.js"></script>
 </head>
+
 <body>
   <div id="reg-agent-page" class="page">
     <div class="card">
@@ -154,10 +168,11 @@
               <div class="muted">Create, link, and manage agent accounts</div>
             </div>
           </div>
+          <button class="home-btn" onclick="window.location.href='index.html'">🏠 Home</button>
         </div>
 
         <div class="wrap">
-          <!-- New Agent -->
+          <!-- ================= NEW AGENT ================= -->
           <div class="section">
             <h3>New Agent & Account</h3>
             <div class="grid">
@@ -174,6 +189,16 @@
                   <option value="admin">Admin</option>
                 </select>
               </div>
+
+              <!-- ✅ NEW HEAD AGENT FIELD -->
+              <div class="full">
+                <label>Head Agent</label>
+                <select id="na-parent">
+                  <option value="">None</option>
+                </select>
+                <small class="muted">Select the superior or head of this agent (leave blank if top-level).</small>
+              </div>
+
               <div class="password-wrapper">
                 <label>Password</label>
                 <input type="password" id="na-password" />
@@ -188,7 +213,7 @@
             <div class="row"><button id="btnCreateNew" class="btn secondary">Create Agent & Account</button></div>
           </div>
 
-          <!-- Attach to Existing Agent -->
+          <!-- ================= EXISTING AGENT ================= -->
           <div class="section">
             <h3>Attach Account to Existing Agent</h3>
             <div class="grid">
@@ -214,7 +239,7 @@
             <div class="row"><button id="btnAttachAccount" class="btn">Create Account for Agent</button></div>
           </div>
 
-          <!-- Reset Password -->
+          <!-- ================= RESET PASSWORD ================= -->
           <div class="section">
             <h3>Reset Password</h3>
             <div class="grid">
@@ -237,7 +262,7 @@
     </div>
   </div>
 
-  <!-- SUCCESS / ERROR ALERT -->
+  <!-- Splash for Success/Error -->
   <div id="splash" class="splash">
     <div class="splash-box">
       <h4 id="splashTitle"></h4>
@@ -245,7 +270,6 @@
     </div>
   </div>
 
-  <!-- Show/Hide Password Toggle -->
   <script>
     function togglePass(id, el) {
       const input = document.getElementById(id);

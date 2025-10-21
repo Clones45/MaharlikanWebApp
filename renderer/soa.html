@@ -19,11 +19,24 @@
     #soa-page .content { padding: 16px; }
 
     /* Header */
-    #soa-page .header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+    #soa-page .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
     #soa-page .banner { display:flex; align-items:center; gap:10px; }
     #soa-page .banner img { width:120px; height:auto; }
     #soa-page h1 { font-size:22px; font-weight:700; color:#0b1f3a; margin:0 0 4px; }
     #soa-page .muted { color:#334155; font-size:15px; }
+
+    /* ✅ Home Button */
+    .home-btn {
+      background:#0b4d87;
+      color:#fff;
+      border:0;
+      border-radius:8px;
+      padding:8px 14px;
+      font-weight:600;
+      cursor:pointer;
+      transition:filter .2s ease;
+    }
+    .home-btn:hover { filter:brightness(0.95); }
 
     /* Toolbar / search */
     #soa-page .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px; }
@@ -133,7 +146,7 @@
     }
 
     @media print {
-      .toolbar, #exportBtn, #printBtn { display:none !important; }
+      .toolbar, #exportBtn, #printBtn, .home-btn { display:none !important; }
       .sheet { max-height:none; overflow:visible; box-shadow:none; border:0; }
       .summary-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .tx-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -173,6 +186,9 @@
               <div class="muted">Search, view, and print member statement</div>
             </div>
           </div>
+
+          <!-- ✅ Home / Back Button -->
+          <button class="home-btn" onclick="window.location.href='index.html'">🏠 Home</button>
         </div>
 
         <div class="toolbar">

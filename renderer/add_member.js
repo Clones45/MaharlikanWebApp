@@ -20,6 +20,29 @@ function clearErrors(){
 
 async function boot(){
   try{
+    // ✅ Added: Create Back/Home button at top
+    const formWrap = qs('body');
+    if (formWrap && !qs('#homeBtn')) {
+      const backBtn = document.createElement('button');
+      backBtn.id = 'homeBtn';
+      backBtn.textContent = '🏠 Home';
+      backBtn.style.position = 'fixed';
+      backBtn.style.top = '14px';
+      backBtn.style.right = '18px';
+      backBtn.style.zIndex = '9999';
+      backBtn.style.background = '#0b4d87';
+      backBtn.style.color = '#fff';
+      backBtn.style.border = '0';
+      backBtn.style.borderRadius = '8px';
+      backBtn.style.padding = '8px 14px';
+      backBtn.style.cursor = 'pointer';
+      backBtn.style.fontWeight = '600';
+      backBtn.onclick = () => window.location.href = 'index.html';
+      backBtn.onmouseenter = () => backBtn.style.filter = 'brightness(0.9)';
+      backBtn.onmouseleave = () => backBtn.style.filter = 'brightness(1)';
+      formWrap.appendChild(backBtn);
+    }
+
     // 1) Get env from Electron preload or fallback to window.__ENV__
     env = null;
     if (window.electronAPI?.getEnv) {
@@ -192,10 +215,9 @@ function gather(form){
     casket_type: get('casket_type') || null,
     contracted_price: num('contracted_price'),
     monthly_due: num('monthly_due'),
-    agent_id: num('agent_id'),            // from <select name="agent_id">
+    agent_id: num('agent_id'),
   };
 
-  // beneficiaries
   const benes = [];
   const b_ln = fd.getAll('b_last_name[]');
   const b_fn = fd.getAll('b_first_name[]');
@@ -221,9 +243,6 @@ function gather(form){
   return { payload, benes };
 }
 
-/**
- * Strict validation (agent_id is required)
- */
 function validate(payload){
   clearErrors();
   let ok = true;
@@ -280,7 +299,6 @@ function resetForm(form){
   } catch(_) {}
 }
 
-// Map Postgres/Supabase errors to user-friendly text
 function friendlyError(err){
   const msg = (err?.message || '').toLowerCase();
 
@@ -321,7 +339,6 @@ async function onSave(e){
       return;
     }
 
-    // Insert member
     const { data: member, error: mErr } = await supabase
       .from('members')
       .insert(payload)
@@ -329,7 +346,6 @@ async function onSave(e){
       .single();
     if (mErr) throw mErr;
 
-    // Insert beneficiaries (if any)
     if (benes.length){
       const rows = benes.map(b => ({ ...b, member_id: member.id }));
       const { error: bErr } = await supabase.from('beneficiaries').insert(rows);

@@ -4,7 +4,7 @@ let env = null;
 
 const REMEMBER_KEY = 'maharlikan.remember'; // local storage flag
 
-/* ---------- DOM helpers ---------- */
+/* -------------------- DOM helpers -------------------- */
 const qs  = (s, r = document) => r.querySelector(s);
 const qsa = (s, r = document) => Array.from(r.querySelectorAll(s));
 const show = (el) => { if (el) el.classList.remove('hidden'); };
@@ -13,8 +13,10 @@ const hide = (el) => { if (el) el.classList.add('hidden'); };
 function setBusy(el, busy) {
   if (!el) return;
   el.disabled = !!busy;
-  if (busy) el.setAttribute('data-busy', '1'); else el.removeAttribute('data-busy');
+  if (busy) el.setAttribute('data-busy', '1'); 
+  else el.removeAttribute('data-busy');
 }
+
 function setMsg(sel, text, mountSel) {
   let el = qs(sel);
   if (!el && mountSel) {
@@ -30,7 +32,7 @@ function setMsg(sel, text, mountSel) {
   if (el) el.textContent = text || '';
 }
 
-/* ---------- Optional watermark ---------- */
+/* -------------------- Watermark -------------------- */
 function setLoginWatermark() {
   try {
     const url = new URL('../assets/logo-watermark.png', window.location.href).toString();
@@ -42,7 +44,7 @@ function setLoginWatermark() {
   }
 }
 
-/* ---------- Columns ---------- */
+/* -------------------- Members table columns -------------------- */
 const MEMBER_COLUMNS = [
   'id','maf_no','first_name','middle_name','last_name','birth_date','age','gender','civil_status','religion',
   'address','contact_number','zipcode','birthplace','nationality','occupation','membership','plan_type',
@@ -50,9 +52,28 @@ const MEMBER_COLUMNS = [
   'created_at','updated_at'
 ];
 
-/* ---------- Boot ---------- */
+/* -------------------- Navigation helper -------------------- */
+/** Try to open a renderer page via IPC. Fallback: navigate current window. */
+function openWindow(file) {
+  try {
+    if (window.electronAPI?.openWindow) {
+      // IPC to main process (preferred)
+      window.electronAPI.openWindow(file);
+    } else {
+      // Fallback to same-window navigation
+      window.location.assign(`./${file}`);
+    }
+  } catch (e) {
+    console.error(`[openWindow] failed for ${file}:`, e);
+    window.location.assign(`./${file}`);
+  }
+}
+
+/* -------------------- Boot -------------------- */
 async function init() {
   try {
+    const IS_LOGIN_PAGE = !!document.querySelector('#login-section'); // detect page
+
     // get env from preload if present, else fallback to window.__ENV__
     if (window.electronAPI?.getEnv) env = await window.electronAPI.getEnv();
     if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) env = window.__ENV__ || {};
@@ -70,32 +91,44 @@ async function init() {
       auth: { persistSession: true, autoRefreshToken: true }
     });
 
-    // ⛔ If user did NOT choose "Remember me", never restore old session
+    // If user did NOT choose "Remember me", never restore old session
     const remember = localStorage.getItem(REMEMBER_KEY) === '1';
     if (!remember) {
-      // this clears any previously stored session tokens
       await supabase.auth.signOut().catch(() => {});
     }
 
-    // Try restoring (only works if remember===true and a valid session exists)
+    // Try restoring session
     const { data: { session } } = await supabase.auth.getSession();
 
     if (session && remember) {
-      await afterLogin(session);
+      // Already logged in
+      if (IS_LOGIN_PAGE) {
+        // If user opens login.html while already logged in → redirect to dashboard
+        window.location.href = "index.html";
+        return;
+      } else {
+        await afterLogin(session);
+      }
     } else {
-      show(qs('#login-section'));
-      hide(qs('#dashboard'));
+      // Not logged in
+      if (IS_LOGIN_PAGE) {
+        show(qs('#login-section'));
+        setLoginWatermark();
+      } else {
+        // Trying to access index.html directly → redirect to login
+        window.location.href = "login.html";
+        return;
+      }
     }
 
     attach();
-    setLoginWatermark();
   } catch (e) {
     console.error('[init] error:', e);
     setMsg('#loginMsg', 'Init failed: ' + (e.message || e), '#login-section');
   }
 }
 
-/* ---------- Events ---------- */
+/* -------------------- Events -------------------- */
 function attach() {
   qs('#loginBtn')?.addEventListener('click', onLogin);
   qs('#signOutBtn')?.addEventListener('click', onSignOut);
@@ -105,77 +138,59 @@ function attach() {
     qs(sel)?.addEventListener('keydown', (e) => { if (e.key === 'Enter') onLogin(); });
   });
 
-// New Member → open new window via Electron, else navigate in-place
-qs('#btnNewMember')?.addEventListener('click', () => {
-  try {
-    if (window.electronAPI?.openWindow) {
-      // ✓ new child window handled by main.js
-      window.electronAPI.openWindow('add_member.html');
-    } else {
-      // ✓ fallback: same window (works even without preload/ipc)
-      window.location.assign('./add_member.html');
+  // Centralized routes: button id -> file name
+  const routes = {
+    btnNewMember:       'add_member.html',
+    btnViewMembers:     'view_members.html',
+    btnAddCollections:  'add_collection.html',
+    btnViewCollections: 'view-collections.html',
+    btnEditMembers:     'edit-member.html',
+    btnSoa:             'soa.html',
+    btnRegisterAgent:   'register-agent.html',
+    btnViewHierarchy:   'view_hierarchy.html', // ✅ added here
+    btnViewCommissions: 'view-commissions.html',
+  };
+
+  // Single click handler for all menu buttons
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.menu-btn');
+    if (!btn || !btn.id) return;
+
+    if (btn.id === 'btnMenuLogout') {
+      onSignOut();
+      return;
     }
-  } catch (e) {
-    console.error('open new member failed:', e);
-    // last-resort fallback
-    window.location.assign('./add_member.html');
-  }
-});
 
-qs('#btnAddCollections')?.addEventListener('click', () => {
-  if (window.electronAPI?.openWindow) {
-    window.electronAPI.openWindow('add_collection.html');
-  } else {
-    alert('Window open not available in this build.');
-  }
-});
+    const file = routes[btn.id];
+    if (!file) return;
 
-qs('#btnViewCollections')?.addEventListener('click', () => {
-  if (window.electronAPI?.openWindow) {
-    window.electronAPI.openWindow('view-collections.html');
-  } else {
-    alert('Window open not available in this build.');
-  }
-});
+    // Special case: View Members has in-page fallback
+    if (btn.id === 'btnViewMembers') {
+      if (window.electronAPI?.openWindow) {
+        openWindow(file);
+      } else {
+        try {
+          qsa('.view').forEach(hide);
+          show(qs('#view-members'));
+          loadMembers();
+        } catch (err) {
+          console.warn('[btnViewMembers] fallback failed:', err);
+          window.location.assign(`./${file}`);
+        }
+      }
+      return;
+    }
 
-qs('#btnSoa')?.addEventListener('click', () => {
-  if (window.electronAPI?.openWindow) {
-    window.electronAPI.openWindow('soa.html');
-  } else {
-    alert('Window open not available in this build.');
-  }
-});
+    openWindow(file);
+  });
 
-qs('#btnRegisterAgent')?.addEventListener('click', () => {
-  if (window.electronAPI?.openWindow) {
-    window.electronAPI.openWindow('register-agent.html');
-  } else {
-    alert('Window open not available in this build.');
-  }
-});
-
-qs('#btnEditMembers')?.addEventListener('click', () => {
-  if (window.electronAPI?.openWindow) {
-    window.electronAPI.openWindow('edit-member.html');
-  } else {
-    alert('Window open not available in this build.');
-  }
-});
-
-qs('#btnViewMembers')?.addEventListener('click', () => {
-  if (window.electronAPI?.openWindow) {
-    window.electronAPI.openWindow('view_members.html');
-  } else {
-    alert('Window open not available in this build.');
-  }
-});
-
+  // live filter for in-page "View Members" fallback
   qs('#m-search')?.addEventListener('input', debounce(loadMembers, 350));
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
-/* ---------- Auth ---------- */
+/* -------------------- Auth -------------------- */
 async function onLogin() {
   const btn = qs('#loginBtn');
   const usernameInput = qs('#email');
@@ -214,9 +229,7 @@ async function onLogin() {
       return;
     }
 
-    // persist remember flag (controls next launch behavior)
     localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0');
-
     await afterLogin(data.session);
   } catch (e) {
     console.error('[onLogin] error:', e);
@@ -226,7 +239,7 @@ async function onLogin() {
   }
 }
 
-/* ---------- After login ---------- */
+/* -------------------- After login -------------------- */
 async function afterLogin(session) {
   try {
     const userId = session.user.id;
@@ -249,6 +262,12 @@ async function afterLogin(session) {
     const userInfo = qs('#user-info');
     if (userInfo) userInfo.textContent = `${name} (admin)`;
 
+    // If on login page, redirect to index.html
+    if (qs('#login-section')) {
+      window.location.href = "index.html";
+      return;
+    }
+
     hide(qs('#login-section'));
     show(qs('#dashboard'));
   } catch (e) {
@@ -259,24 +278,31 @@ async function afterLogin(session) {
   }
 }
 
-/* ---------- Sign out ---------- */
+/* -------------------- Sign out -------------------- */
 async function onSignOut() {
   try {
     await supabase.auth.signOut();
   } catch (e) {
     console.warn('[signOut] error:', e);
   } finally {
-    localStorage.removeItem(REMEMBER_KEY); // clear remember so next launch won’t auto-login
+    localStorage.removeItem(REMEMBER_KEY);
     const userInfo = qs('#user-info');
     if (userInfo) userInfo.textContent = '';
-    show(qs('#login-section'));
-    hide(qs('#dashboard'));
-    setMsg('#loginMsg', 'Signed out.', '#login-section');
-    setLoginWatermark();
+    if (qs('#dashboard')) {
+      hide(qs('#dashboard'));
+    }
+    if (qs('#login-section')) {
+      show(qs('#login-section'));
+      setMsg('#loginMsg', 'Signed out.', '#login-section');
+      setLoginWatermark();
+    } else {
+      // Redirect to login page if not present
+      window.location.href = "login.html";
+    }
   }
 }
 
-/* ---------- Members ---------- */
+/* -------------------- Members (in-page fallback) -------------------- */
 async function loadMembers() {
   const thead = qs('#m-thead');
   const tbody = qs('#m-tbody');
@@ -307,7 +333,7 @@ async function loadMembers() {
   setMsg('#m-msg', `${rows.length} row(s)`, '#view-members');
 }
 
-/* ---------- DOM ready ---------- */
+/* -------------------- DOM ready -------------------- */
 window.addEventListener('DOMContentLoaded', () => {
   setLoginWatermark();
   init();

@@ -29,7 +29,6 @@
       pointer-events: none;
     }
 
-    /* === Page fills the window === */
     html, body { height: 100%; }
     body { margin: 0; font-family: "Segoe UI", Roboto, Arial, sans-serif; color: #e6edf3; background: transparent; }
 
@@ -39,7 +38,6 @@
       padding: 16px;
     }
 
-    /* === Header === */
     .page-header {
       display: flex; align-items: center; justify-content: center;
       margin: 2px 0 10px;
@@ -49,7 +47,6 @@
       color: #f4f7fb; font-size: clamp(20px, 2.2vw, 28px); font-weight: 800;
     }
 
-    /* === Card fills remaining height and shows content === */
     .card {
       width: min(1400px, 96vw);
       margin: 0 auto;
@@ -59,11 +56,10 @@
       box-shadow: 0 12px 24px rgba(0,0,0,.25);
       backdrop-filter: blur(8px) saturate(1.05);
       display: flex; flex-direction: column;
-      min-height: 0;   /* let children flex */
+      min-height: 0;
       flex: 1 1 auto;
     }
 
-    /* === Toolbar (sticky inside the card) === */
     .toolbar {
       position: sticky; top: 0; z-index: 5;
       display: flex; align-items: center; gap: 10px;
@@ -89,7 +85,20 @@
     }
     .btn:hover { filter: brightness(1.08); }
 
-    /* === Table region flexes to fill the card and shows scrollbars === */
+    /* ✅ Home / Back Button */
+    .home-btn {
+      margin-left: auto;
+      background: #2d3748;
+      color: #fff;
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: filter .2s ease;
+    }
+    .home-btn:hover { filter: brightness(1.15); background:#1f2937; }
+
     .table-wrap {
       padding: 10px 12px 8px;
       display: flex; flex-direction: column;
@@ -99,21 +108,18 @@
     .scroll-x {
       min-height: 0;
       flex: 1 1 auto;
-      overflow: auto;                 /* visible scrollbars */
+      overflow: auto;
       border-radius: 10px;
       border: 1px solid #1f2a3a;
       background: rgba(255,255,255,.02);
     }
-
-    /* Optional: make scrollbars clearly visible on Windows */
     .scroll-x::-webkit-scrollbar { height: 12px; width: 12px; }
     .scroll-x::-webkit-scrollbar-thumb { background: #3b4a63; border-radius: 8px; }
     .scroll-x::-webkit-scrollbar-track { background: #0f1420; }
 
-    /* === Table look & sticky header === */
     table.grid {
       width: 100%;
-      min-width: 1400px;                 /* horizontal scroll if narrower */
+      min-width: 1400px;
       border-collapse: collapse;
       color: #dce5f3;
     }
@@ -131,10 +137,8 @@
     table.grid tbody tr:nth-child(even) td { background: #111827; }
     table.grid tbody tr:hover td { background: #162033; }
 
-    /* Beneficiaries folding row */
     .beneficiaries-row td { background:#0f1b31; padding: 0 0 8px; }
 
-    /* Footer */
     .card-footer {
       display: flex; justify-content: flex-end; padding: 10px 12px 14px;
     }
@@ -145,10 +149,8 @@
     }
     .back:hover { background:#1f2937; }
 
-    /* Status text */
     .muted { color:#9aa4b2; font-size: 13px; margin-left: 10px; }
 
-    /* === Print keeps your landscape table === */
     @media print {
       @page { size: A4 landscape; margin: 0.5cm; }
       .app-bg, .page-header, .toolbar, .card-footer { display: none !important; }
@@ -180,6 +182,9 @@
         <button id="printBtn" class="btn">Print Table</button>
         <button id="refreshBtn" class="btn">Refresh</button>
         <span id="statusText" class="muted"></span>
+
+        <!-- ✅ Home / Back Button -->
+        <button class="home-btn" onclick="window.location.href='index.html'">🏠 Home</button>
       </div>
 
       <div class="table-wrap">
@@ -226,7 +231,6 @@
     </main>
   </div>
 
-  <!-- Supabase CDN (non-module exposes window.supabase) -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <script>
@@ -238,18 +242,15 @@
     let supabaseClient = null;
     let env = null;
 
-    // Cached data
     let MEMBERS = [];
-    let BENEFICIARIES_BY_MEMBER = new Map(); // member_id -> array
+    let BENEFICIARIES_BY_MEMBER = new Map();
     let AGENTS_BY_ID = new Map();
     let showBeneficiaries = false;
 
-    // ------- Boot -------
     window.addEventListener('DOMContentLoaded', init);
 
     async function init() {
       try {
-        // 1) Env via Electron preload (or window.__ENV__ as fallback)
         if (window.electronAPI?.getEnv) {
           try { env = await window.electronAPI.getEnv(); } catch {}
         }
@@ -261,7 +262,6 @@
           return;
         }
 
-        // 2) Create client + check session
         supabaseClient = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
           auth: { persistSession: true, autoRefreshToken: true },
         });
@@ -273,10 +273,7 @@
           return;
         }
 
-        // 3) Wire UI
         wireUI();
-
-        // 4) Load data
         await refreshAll();
       } catch (e) {
         console.error('[init] error', e);
@@ -312,18 +309,13 @@
       setStatus('');
     }
 
-    // ------- Data Loading -------
     async function loadAgents() {
       AGENTS_BY_ID.clear();
       const { data, error } = await supabaseClient
         .from('agents')
         .select('id, lastname, firstname')
         .order('lastname', { ascending: true });
-      if (error) {
-        console.error('[agents] ', error);
-        setStatus('Failed to load agents');
-        return;
-      }
+      if (error) return console.error('[agents]', error), setStatus('Failed to load agents');
       (data || []).forEach(a => {
         const name = [a.lastname || '', a.firstname || ''].filter(Boolean).join(', ').trim();
         AGENTS_BY_ID.set(a.id, name || ('Agent #' + a.id));
@@ -332,80 +324,59 @@
 
     async function loadMembers() {
       MEMBERS = [];
-      // Pull relevant columns; adjust if you add/remove fields
-      const columns = [
+      const cols = [
         'id','maf_no','last_name','first_name','middle_name','gender','civil_status',
         'address','zipcode','birth_date','birthplace','nationality','age','height','weight',
         'religion','occupation','membership','plan_type','contracted_price','date_joined',
         'balance','casket_type','contact_number','agent_id'
       ].join(',');
-
       const { data, error } = await supabaseClient
         .from('members')
-        .select(columns)
+        .select(cols)
         .order('last_name', { ascending: true })
         .limit(2000);
-
-      if (error) {
-        console.error('[members] ', error);
-        setStatus('Failed to load members');
-        return;
-      }
+      if (error) return console.error('[members]', error), setStatus('Failed to load members');
       MEMBERS = data || [];
     }
 
     async function loadBeneficiaries() {
       BENEFICIARIES_BY_MEMBER.clear();
-
       const { data, error } = await supabaseClient
         .from('beneficiaries')
         .select('member_id, relation, last_name, first_name, middle_name, birth_date, age, address');
-
-      if (error) {
-        console.error('[beneficiaries] ', error);
-        setStatus('Failed to load beneficiaries');
-        return;
-      }
-
+      if (error) return console.error('[beneficiaries]', error), setStatus('Failed to load beneficiaries');
       (data || []).forEach(b => {
-        if (!BENEFICIARIES_BY_MEMBER.has(b.member_id)) {
+        if (!BENEFICIARIES_BY_MEMBER.has(b.member_id))
           BENEFICIARIES_BY_MEMBER.set(b.member_id, []);
-        }
         BENEFICIARIES_BY_MEMBER.get(b.member_id).push(b);
       });
     }
 
-    // ------- Render -------
     function esc(v) {
-  // Convert null, undefined, blank string, or 0 to N/A
-  if (v === null || v === undefined) return 'N/A';
-  if (typeof v === 'string') {
-    const trimmed = v.trim();
-    if (trimmed === '' || trimmed === '0' || trimmed.toLowerCase() === 'null') return 'N/A';
-    return trimmed;
-  }
-  if (typeof v === 'number') {
-    return v === 0 ? 'N/A' : String(v);
-  }
-  return String(v) || 'N/A';
-}
+      if (v === null || v === undefined) return 'N/A';
+      if (typeof v === 'string') {
+        const t = v.trim();
+        if (!t || t === '0' || t.toLowerCase() === 'null') return 'N/A';
+        return t;
+      }
+      if (typeof v === 'number') return v === 0 ? 'N/A' : String(v);
+      return String(v) || 'N/A';
+    }
 
-function money(v) {
-  if (v === null || v === undefined || v === '' || Number(v) === 0) return 'N/A';
-  const n = Number(v);
-  return Number.isFinite(n)
-    ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : 'N/A';
-}
+    function money(v) {
+      if (v === null || v === undefined || v === '' || Number(v) === 0) return 'N/A';
+      const n = Number(v);
+      return Number.isFinite(n)
+        ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : 'N/A';
+    }
 
     function renderTable() {
       const tbody = qs('#membersTbody');
       tbody.innerHTML = '';
-
-      const rows = MEMBERS;
       const frag = document.createDocumentFragment();
 
-      rows.forEach(m => {
+      MEMBERS.forEach(m => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${esc(m.maf_no)}</td>
@@ -435,7 +406,6 @@ function money(v) {
         `;
         frag.appendChild(tr);
 
-        // Beneficiaries row (toggle global)
         if (showBeneficiaries) {
           const btr = document.createElement('tr');
           btr.className = 'beneficiaries-row';
@@ -480,17 +450,13 @@ function money(v) {
       tbody.appendChild(frag);
     }
 
-    // ------- Search (client-side filter) -------
     function onSearch(e) {
       const q = (e.target.value || '').toLowerCase().trim();
       const tbody = qs('#membersTbody');
-      // Simple text search across concatenated row text.
       qsa('tr', tbody).forEach(tr => {
-        // skip beneficiaries rows from search hide (pair them with member row)
         if (tr.classList.contains('beneficiaries-row')) return;
         const text = tr.textContent.toLowerCase();
         tr.style.display = text.includes(q) ? '' : 'none';
-        // also hide the next beneficiaries row if the member row is hidden
         const next = tr.nextElementSibling;
         if (next && next.classList.contains('beneficiaries-row')) {
           next.style.display = tr.style.display;
@@ -499,4 +465,4 @@ function money(v) {
     }
   </script>
 </body>
-</html>
+</html>   

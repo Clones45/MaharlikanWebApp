@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Commission Summary — Maharlikan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Supabase SDK v2 -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <!-- jsPDF + autotable for export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root{--bg:#0b0e14;--card:#171b22;--muted:#9aa7b7;--text:#e8eef7;--accent:#4a78ff;--accent-2:#2a3240;}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
+    .page{min-height:100%;display:grid;place-items:center;padding:24px}
+    .card{width:min(1000px,calc(100vw - 32px));background:linear-gradient(180deg,#1b2028,#141820);
+      border:1px solid #272c36;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.35);padding:22px}
+    .title{margin:6px 6px 14px;text-align:center;font-weight:700;letter-spacing:.2px}
+    .home-btn{position:absolute;top:16px;right:16px;background:var(--accent);color:#fff;border:0;border-radius:8px;
+      padding:6px 12px;font-weight:600;cursor:pointer;transition:filter .2s ease}
+    .home-btn:hover{filter:brightness(.95)}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0 16px}
+    select,button{appearance:none;border:1px solid #2c3445;background:#141a24;color:var(--text);padding:10px 12px;border-radius:10px}
+    button.primary{background:var(--accent);border-color:#4669ff;color:#eef2ff}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .muted{color:var(--muted)}
+    .period{font-weight:600;margin-left:auto}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #232936}
+    th{color:#cfe0ff;text-align:left;background:#111723}
+    td.right{text-align:right}
+    .totalbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:flex-end;margin-top:12px}
+    .chip{background:#0e1219;border:1px solid #2a3140;border-radius:999px;padding:6px 10px;font-size:13px}
+    .toast{position:fixed;left:50%;top:24px;transform:translateX(-50%);background:#1b2333;border:1px solid #2c3548;
+      color:#eef3ff;padding:12px 16px;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.35);opacity:0;pointer-events:none;
+      transition:opacity .24s ease, transform .24s ease;z-index:9999}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(4px)}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card" style="position:relative">
+      <button class="home-btn" onclick="window.location.href='index.html'">🏠 Home</button>
+      <h1 class="title">Commission Summary</h1>
+
+      <div class="toolbar">
+        <label class="muted">Month
+          <select id="monthSel"></select>
+        </label>
+        <label class="muted">Year
+          <select id="yearSel"></select>
+        </label>
+
+        <button id="applyBtn" class="primary">Load Commissions</button>
+        <button id="exportBtn">Export PDF</button>
+        <button id="printBtn">Print</button>
+
+        <div id="periodLabel" class="period muted"></div>
+      </div>
+
+      <div class="muted" style="margin-bottom:8px">
+        Showing all commissions earned within the selected month, based on <b>date_earned</b>.
+      </div>
+
+      <div style="overflow:auto;border:1px solid #232936;border-radius:10px">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:140px">Date Earned</th>
+              <th style="width:220px">Agent</th>
+              <th>Type</th>
+              <th style="width:120px">Plan</th>
+              <th class="right" style="width:140px">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="5" class="muted" style="text-align:center">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="totalbar">
+        <div class="chip">Monthly: <b id="tMonthly">₱0.00</b></div>
+        <div class="chip">Outright: <b id="tOutright">₱0.00</b></div>
+        <div class="chip">Recruiter: <b id="tRecruiter">₱0.00</b></div>
+        <div class="chip">Total: <b id="tGrand">₱0.00</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="./view_commissions.js"></script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Profile | Maharlikan Dashboard</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.4/dist/umd/supabase.min.js"></script>
+    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      body {
+        background: #0f1117;
+        color: #fff;
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        padding: 20px;
+      }
+      .card {
+        background: #1f2229;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+      }
+      .btn {
+        background: #5fe280;
+        border: none;
+        padding: 8px 14px;
+        border-radius: 4px;
+        cursor: pointer;
+        color: #000;
+        font-weight: 600;
+      }
+      .btn:hover {
+        background: #7ff598;
+      }
+      a.back {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: #5fe280;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      a.back:hover {
+        text-decoration: underline;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        background: #14161c;
+      }
+      th, td {
+        padding: 8px 10px;
+        text-align: left;
+        border-bottom: 1px solid #333;
+      }
+      th {
+        background: #1f2229;
+        color: #5fe280;
+      }
+      td {
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <a href="view_hierarchy.html" class="back">← Back to Hierarchy</a>
+    <div id="root"></div>
+    <script src="./agent_profile.js"></script>
+  </body>
+</html>
