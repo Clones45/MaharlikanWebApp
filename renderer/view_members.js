@@ -7,6 +7,12 @@ const setMsg = (t) => { const el = qs('#statusText'); if (el) el.textContent = t
 const agentsMap = new Map();
 const beneficiariesMap = new Map();
 
+// Global State
+// Global State
+let _allMembers = [];
+let _cachedAllMembers = []; // store original full list to restore after lapsed filter
+let _currentPage = 1;
+const ITEMS_PER_PAGE = 10;
 const PAGE = 1000; // pull big pages automatically until done
 
 function esc(v) { return (v == null) ? '' : String(v); }
@@ -58,38 +64,257 @@ function wire() {
     const rows = qsa('.beneficiaries-row');
     const first = rows[0];
     const show = !first || first.style.display === '' || first.style.display === 'none';
-    rows.forEach(r => r.style.display = show ? 'table-row' : 'none');
+    // Update button text - renderTable will handle visibility
     qs('#toggleBeneficiariesBtn').textContent = show ? 'Hide Beneficiaries' : 'Show Beneficiaries';
+    renderTable(); // Re-render to apply visibility to current page
   });
 
   qs('#searchInput')?.addEventListener('keyup', () => {
-    const term = (qs('#searchInput').value || '').toLowerCase();
-    const btnText = qs('#toggleBeneficiariesBtn')?.textContent || '';
-    const beneVisible = btnText.includes('Hide');
-
-    qsa('#membersTable tbody tr').forEach(tr => {
-      const isBene = tr.classList.contains('beneficiaries-row');
-      if (isBene) {
-        tr.style.display = beneVisible ? tr.dataset.parentVisible === '1' ? 'table-row' : 'none' : 'none';
-      } else {
-        const show = tr.textContent.toLowerCase().includes(term);
-        tr.style.display = show ? '' : 'none';
-        const next = tr.nextElementSibling;
-        if (next && next.classList.contains('beneficiaries-row')) {
-          next.dataset.parentVisible = show ? '1' : '0';
-          next.style.display = beneVisible && show ? 'table-row' : 'none';
-        }
-      }
-    });
-
-    // keep the floating slider in sync while filtering
-    FLOAT_HSCROLL.sync();
+    _currentPage = 1; // Reset to page 1 on search
+    renderTable();
   });
 
   qs('#closeBtn')?.addEventListener('click', (e) => {
     e.preventDefault();
     window.close();
   });
+
+  // Filter Buttons
+  const fLapsed = qs('#filterLapsedBtn');
+  const fCard = qs('#filterCardBtn');
+  const fDef = qs('#filterDeferredBtn');
+  const fNon = qs('#filterNonDeferredBtn');
+  const fAtRisk = qs('#filterAtRiskBtn');
+
+  function setActive(btn, name) {
+    if (window._currentFilter === name) {
+      // toggle off
+      window._currentFilter = null;
+      btn.style.background = '#2d3748'; // default
+      // If we were in LAPSED or AT_RISK mode, restore the full member list
+      if (name === 'LAPSED' || name === 'AT_RISK') {
+        _allMembers = [..._cachedAllMembers];
+        setMsg('Restored full member list.');
+      }
+    } else {
+      // If we are switching FROM Lapsed/AtRisk TO something else, restore first
+      if (window._currentFilter === 'LAPSED' || window._currentFilter === 'AT_RISK') {
+        _allMembers = [..._cachedAllMembers];
+      }
+
+      // set new
+      window._currentFilter = name;
+      // reset others
+      [fLapsed, fCard, fDef, fNon, fAtRisk].forEach(b => {
+        if (b) {
+          b.style.background = '#2d3748';
+          b.style.border = '0';
+          if (b.id === 'filterLapsedBtn') b.style.border = '1px solid #ef4444'; // keep red border hint
+        }
+      });
+
+      btn.style.background = '#4f8cff'; // active
+
+      if (name === 'LAPSED') {
+        btn.style.border = '1px solid #b91c1c';
+        loadLapsedMembers();
+        return;
+      }
+
+      if (name === 'AT_RISK') {
+        btn.style.background = '#fbbf24'; // Yellow active
+        btn.style.color = '#1f2937';
+        loadAtRiskMembers();
+        return;
+      }
+    }
+    _currentPage = 1;
+    renderTable();
+  }
+
+  fLapsed?.addEventListener('click', () => setActive(fLapsed, 'LAPSED'));
+  fCard?.addEventListener('click', () => setActive(fCard, 'CARD'));
+  fDef?.addEventListener('click', () => setActive(fDef, 'DEFERRED'));
+  fNon?.addEventListener('click', () => setActive(fNon, 'NON_DEFERRED'));
+  fAtRisk?.addEventListener('click', () => setActive(fAtRisk, 'AT_RISK'));
+
+  // Pagination
+  qs('#prevPageBtn')?.addEventListener('click', () => changePage(-1));
+  qs('#nextPageBtn')?.addEventListener('click', () => changePage(1));
+}
+
+function changePage(delta) {
+  _currentPage += delta;
+  renderTable();
+}
+
+function renderTable() {
+  const term = (qs('#searchInput').value || '').toLowerCase();
+  const filter = window._currentFilter; // 'CARD', 'DEFERRED', 'NON_DEFERRED' or null
+  const btnText = qs('#toggleBeneficiariesBtn')?.textContent || '';
+  const beneVisible = btnText.includes('Hide');
+
+  // 1. Filter Data
+  const filtered = _allMembers.filter(m => {
+    // Search Term
+    // Optimization: construct text once if needed, or check properties directly
+    const text = [
+      m.maf_no, m.last_name, m.first_name, m.middle_name,
+      m.address, m.plan_type, agentName(m.agent_id)
+    ].join(' ').toLowerCase();
+
+    if (term && !text.includes(term)) return false;
+
+    // Filter Buttons
+    if (!filter) return true;
+
+    // Calculate Installments Paid
+    // Formula: (Contracted Price - Balance) / Monthly Due
+    const cPrice = Number(m.contracted_price) || 0;
+    const bal = Number(m.balance) || 0;
+    const mDue = Number(m.monthly_due) || 0;
+    let paid = 0;
+    if (mDue > 0) paid = (cPrice - bal) / mDue;
+
+    if (filter === 'CARD') {
+      if ((m.plan_type || '').toUpperCase() !== 'CARD') return false;
+    } else if (filter === 'DEFERRED') {
+      // Exclude CARD, include only if paid <= 12
+      if ((m.plan_type || '').toUpperCase() === 'CARD') return false;
+      if (paid > 12) return false;
+    } else if (filter === 'NON_DEFERRED') {
+      // Exclude CARD, include only if paid >= 13
+      if ((m.plan_type || '').toUpperCase() === 'CARD') return false;
+      if (paid < 13) return false;
+    }
+    return true;
+  });
+
+  // 2. Pagination Logic
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
+  if (_currentPage < 1) _currentPage = 1;
+  if (_currentPage > totalPages) _currentPage = totalPages;
+
+  const start = (_currentPage - 1) * ITEMS_PER_PAGE;
+  const end = start + ITEMS_PER_PAGE;
+  const pageItems = filtered.slice(start, end);
+
+  // 3. Render Rows
+  const tbody = qs('#membersTbody');
+  tbody.innerHTML = '';
+
+  pageItems.forEach(m => {
+    // Determine status badge
+    let statusHtml = '';
+    const isLapsed = (window._currentFilter === 'LAPSED');
+    const isAtRisk = (window._currentFilter === 'AT_RISK');
+
+    // 1. Check for Lapsed
+    if (isLapsed || m.months_since_start) {
+      statusHtml = '<span class="badge-lapsed">LAPSED</span>';
+    } else if (isAtRisk) {
+      statusHtml = '<span class="badge-at-risk">AT RISK</span>';
+    } else {
+      // 2. Check for Commissionable
+      // Rule: installment_month <= 12 -> Commissionable, > 12 -> Non-Commissionable
+      const cPrice = Number(m.contracted_price) || 0;
+      const bal = Number(m.balance) || 0;
+      const mDue = Number(m.monthly_due) || 0;
+      let paid = 0;
+      if (mDue > 0) paid = (cPrice - bal) / mDue;
+
+      if (paid <= 12) {
+        statusHtml = '<span style="color:#0f0; font-weight:bold;">COMMISSIONABLE</span>';
+      } else {
+        statusHtml = '<span style="color:#f90; font-weight:bold;">NON COMMISSIONABLE</span>';
+      }
+    }
+
+    const tr = document.createElement('tr');
+    if (isLapsed) tr.className = 'row-lapsed';
+    if (isAtRisk) tr.className = 'row-at-risk';
+
+    tr.innerHTML = `
+        <td>${esc(m.maf_no)}</td>
+        <td>${esc(m.last_name)}</td>
+        <td>${esc(m.first_name)}</td>
+        <td>${esc(m.middle_name)}</td>
+        <td>${esc(m.address)}</td>
+        <td>${esc(m.contact_number)}</td>
+        <td>${esc(m.religion)}</td>
+        <td>${esc(m.birth_date)}</td>
+        <td>${esc(m.age)}</td>
+        <td>${money(m.monthly_due)}</td>
+        <td>${esc(m.plan_type)}</td>
+        <td>${money(m.contracted_price)}</td>
+        <td>${esc(m.date_joined)}</td>
+        <td>${money(m.balance)}</td>
+        <td>${esc(m.gender)}</td>
+        <td>${esc(m.civil_status)}</td>
+        <td>${esc(m.zipcode)}</td>
+        <td>${esc(m.birthplace)}</td>
+        <td>${esc(m.nationality)}</td>
+        <td>${esc(m.height)}</td>
+        <td>${esc(m.weight)}</td>
+        <td>${esc(m.casket_type)}</td>
+        <td>${esc(m.membership)}</td>
+        <td>${esc(m.occupation)}</td>
+        <td>${esc(agentName(m.agent_id))}</td>
+      `;
+
+    tbody.appendChild(tr);
+
+    // Beneficiaries Row
+    const beneTr = document.createElement('tr');
+    beneTr.className = 'beneficiaries-row';
+    beneTr.dataset.memberId = m.id;
+    // Visibility
+    beneTr.style.display = beneVisible ? 'table-row' : 'none';
+
+    const list = beneficiariesMap.get(m.id) || [];
+    const tbdContent = !list.length
+      ? `<tr><td colspan="7">No beneficiaries</td></tr>`
+      : list.map(b => `
+            <tr>
+              <td>${esc(b.relation)}</td>
+              <td>${esc(b.last_name)}</td>
+              <td>${esc(b.first_name)}</td>
+              <td>${esc(b.middle_name)}</td>
+              <td>${esc(b.birth_date)}</td>
+              <td>${esc(b.age)}</td>
+              <td>${esc(b.address)}</td>
+            </tr>`).join('');
+
+    beneTr.innerHTML = `
+      <td colspan="25">
+        <table class="inner-beneficiaries-table">
+          <thead>
+            <tr>
+              <th>Relation</th>
+              <th>Last Name</th>
+              <th>First Name</th>
+              <th>Middle Name</th>
+              <th>Birth Date</th>
+              <th>Age</th>
+              <th>Address</th>
+            </tr>
+          </thead>
+          <tbody>${tbdContent}</tbody>
+        </table>
+      </td>`;
+    tbody.appendChild(beneTr);
+  });
+
+  // 4. Update Controls
+  const prev = qs('#prevPageBtn');
+  const next = qs('#nextPageBtn');
+  const ind = qs('#pageIndicator');
+
+  if (prev) prev.disabled = _currentPage === 1;
+  if (next) next.disabled = _currentPage === totalPages;
+  if (ind) ind.textContent = `Page ${_currentPage} of ${totalPages} (${filtered.length} total)`;
+
+  FLOAT_HSCROLL.sync();
 }
 
 async function loadAgentsMap() {
@@ -102,7 +327,7 @@ async function loadAgentsMap() {
     if (error) throw error;
     (data || []).forEach(a => {
       const name = [a.lastname || '', a.firstname || ''].filter(Boolean).join(', ');
-      agentsMap.set(a.id, name || `#${a.id}`);
+      agentsMap.set(a.id, name || `#${a.id} `);
     });
   } catch (e) {
     console.warn('[agents map]', e.message);
@@ -112,13 +337,12 @@ async function loadAgentsMap() {
 function agentName(agent_id) {
   if (agent_id == null) return '';
   const k = Number(agent_id);
-  return agentsMap.get(k) || `#${agent_id}`;
+  return agentsMap.get(k) || `#${agent_id} `;
 }
 
 async function loadAllMembers() {
   setMsg('Loading members…');
-  const tbody = qs('#membersTbody');
-  tbody.innerHTML = '';
+  _allMembers = []; // Reset global list
 
   let from = 0, total = 0, allIds = [];
 
@@ -136,64 +360,7 @@ async function loadAllMembers() {
 
     // collect member ids for bene fetch
     allIds.push(...rows.map(r => r.id));
-
-    // render member rows now (bene rows appended after bene fetch)
-    for (const m of rows) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${esc(m.maf_no)}</td>
-        <td>${esc(m.last_name)}</td>
-        <td>${esc(m.first_name)}</td>
-        <td>${esc(m.middle_name)}</td>
-        <td>${esc(m.gender)}</td>
-        <td>${esc(m.civil_status)}</td>
-        <td>${esc(m.address)}</td>
-        <td>${esc(m.zipcode)}</td>
-        <td>${esc(m.birth_date)}</td>
-        <td>${esc(m.birthplace)}</td>
-        <td>${esc(m.nationality)}</td>
-        <td>${esc(m.age)}</td>
-        <td>${esc(m.height)}</td>
-        <td>${esc(m.weight)}</td>
-        <td>${esc(m.religion)}</td>
-        <td>${esc(m.contact_number)}</td>
-        <td>${money(m.monthly_due)}</td>
-        <td>${esc(m.plan_type)}</td>
-        <td>${money(m.contracted_price)}</td>
-        <td>${esc(m.date_joined)}</td>
-        <td>${money(m.balance)}</td>
-        <td>${esc(m.casket_type)}</td>
-        <td>${esc(m.membership)}</td>
-        <td>${esc(m.occupation)}</td>
-        <td>${esc(agentName(m.agent_id))}</td>
-      `;
-      tbody.appendChild(tr);
-
-      // placeholder beneficiaries row (content filled later)
-      const beneTr = document.createElement('tr');
-      beneTr.className = 'beneficiaries-row';
-      beneTr.dataset.memberId = m.id;
-      beneTr.dataset.parentVisible = '1';
-      beneTr.style.display = 'none';
-      beneTr.innerHTML = `
-        <td colspan="25">
-          <table class="inner-beneficiaries-table">
-            <thead>
-              <tr>
-                <th>Relation</th>
-                <th>Last Name</th>
-                <th>First Name</th>
-                <th>Middle Name</th>
-                <th>Birth Date</th>
-                <th>Age</th>
-                <th>Address</th>
-              </tr>
-            </thead>
-            <tbody><tr><td colspan="7">Loading…</td></tr></tbody>
-          </table>
-        </td>`;
-      tbody.appendChild(beneTr);
-    }
+    _allMembers.push(...rows);
 
     total += rows.length;
     from += rows.length;
@@ -203,41 +370,87 @@ async function loadAllMembers() {
 
   await loadAllBeneficiaries(allIds);
 
-  // fill beneficiaries into their rows
-  const beneVisible = (qs('#toggleBeneficiariesBtn')?.textContent || '').includes('Hide');
-  qsa('.beneficiaries-row').forEach(tr => {
-    const id = Number(tr.dataset.memberId);
-    const list = beneficiariesMap.get(id) || [];
-    const tbd = tr.querySelector('tbody');
-    if (!list.length) {
-      tbd.innerHTML = `<tr><td colspan="7">No beneficiaries</td></tr>`;
-    } else {
-      tbd.innerHTML = list.map(b => `
-        <tr>
-          <td>${esc(b.relation)}</td>
-          <td>${esc(b.last_name)}</td>
-          <td>${esc(b.first_name)}</td>
-          <td>${esc(b.middle_name)}</td>
-          <td>${esc(b.birth_date)}</td>
-          <td>${esc(b.age)}</td>
-          <td>${esc(b.address)}</td>
-        </tr>
-      `).join('');
-    }
-    tr.style.display = beneVisible ? 'table-row' : 'none';
-  });
+  _cachedAllMembers = [..._allMembers]; // Cache the full list for restoration
 
+  // Initial Render
+  renderTable();
   setMsg(`Loaded ${total} member(s).`);
 
-  // (Re)align the floating slider to the table container
   FLOAT_HSCROLL.init();
 }
 
-/* ===== Floating horizontal "slider" (fixed to viewport) =====
-   - Always visible near bottom of the window
-   - Aligns to the .scroll-x container's left/width
-   - Mirrors/controls the real horizontal scroll
-*/
+async function loadAllBeneficiaries(ids) {
+  setMsg('Loading beneficiaries…');
+  beneficiariesMap.clear();
+  const pageSize = 2000; // efficient in chunks
+  for (let i = 0; i < ids.length; i += pageSize) {
+    const slice = ids.slice(i, i + pageSize);
+    const { data, error } = await supabase
+      .from('beneficiaries')
+      .select('member_id, relation, last_name, first_name, middle_name, birth_date, age, address')
+      .in('member_id', slice)
+      .order('last_name', { ascending: true });
+    if (error) throw error;
+    (data || []).forEach(b => {
+      if (!beneficiariesMap.has(b.member_id)) beneficiariesMap.set(b.member_id, []);
+      beneficiariesMap.get(b.member_id).push(b);
+    });
+  }
+}
+
+async function loadLapsedMembers() {
+  setMsg('Loading lapsed members...');
+  try {
+    const { data, error } = await supabase.rpc('get_lapsed_members');
+    if (error) throw error;
+
+    _allMembers = data || [];
+
+    // We also need to fetch beneficiaries for these members to prevent errors when expanding
+    // Map data to just IDs
+    const newIds = _allMembers.map(m => m.id);
+    if (newIds.length > 0) {
+      await loadAllBeneficiaries(newIds);
+    } else {
+      setMsg('No lapsed members found.');
+    }
+
+    _currentPage = 1;
+    renderTable();
+    setMsg(`Loaded ${_allMembers.length} lapsed member(s).`);
+
+    // Re-init horizontal scroll just in case
+    FLOAT_HSCROLL.sync();
+
+  } catch (e) {
+    console.error('Error loading lapsed members:', e);
+    setMsg('Error loading lapsed members: ' + e.message);
+  }
+}
+
+async function loadAtRiskMembers() {
+  setMsg('Loading at-risk members...');
+  try {
+    const { data, error } = await supabase.rpc('get_at_risk_members');
+    if (error) throw error;
+
+    _allMembers = data || [];
+
+    const newIds = _allMembers.map(m => m.id);
+    if (newIds.length > 0) {
+      await loadAllBeneficiaries(newIds);
+    }
+
+    _currentPage = 1;
+    renderTable();
+    setMsg(`Loaded ${_allMembers.length} at-risk member(s).`);
+  } catch (e) {
+    console.error('Error loading AT RISK:', e);
+    setMsg('Error loading AT RISK members: ' + e.message);
+  }
+}
+
+/* ===== Floating horizontal "slider" (fixed to viewport) ===== */
 const FLOAT_HSCROLL = (function () {
   let sliderWrap, slider, wrap, ro, styleEl;
   let suppress = false;
@@ -246,57 +459,48 @@ const FLOAT_HSCROLL = (function () {
     if (styleEl) return;
     styleEl = document.createElement('style');
     styleEl.textContent = `
-      .hs-float{
-        position: fixed; z-index: 9999;
-        bottom: 16px;   /* distance from window bottom */
-        left: 24px;     /* default; we compute real left */
-        width: 320px;   /* default; we compute real width */
-        padding: 6px 10px;
-        background: rgba(24,28,38,.75);
-        border: 1px solid rgba(255,255,255,.12);
-        border-radius: 10px;
-        backdrop-filter: blur(6px);
-        box-shadow: 0 10px 24px rgba(0,0,0,.35);
-      }
-      .hs-float input[type="range"]{
-        -webkit-appearance: none; appearance: none;
-        width: 100%; height: 8px; background: transparent; margin: 0;
-      }
-      .hs-float input[type="range"]::-webkit-slider-runnable-track{
-        height: 8px; background: #3b4a63; border-radius: 5px;
-      }
-      .hs-float input[type="range"]::-webkit-slider-thumb{
-        -webkit-appearance: none; width: 18px; height: 18px;
-        background: #8fb0ff; border-radius: 50%; margin-top: -5px;
-        box-shadow: 0 2px 6px rgba(0,0,0,.35);
-      }
-      .hs-float input[type="range"]::-moz-range-track{
-        height: 8px; background: #3b4a63; border-radius: 5px;
-      }
-      .hs-float input[type="range"]::-moz-range-thumb{
-        width: 16px; height: 16px; background: #8fb0ff; border-radius: 50%;
-      }
-    `;
+    .hs - float{
+    position: fixed; z - index: 9999;
+    bottom: 70px;   /* Adjusted to 70px to sit above footer */
+    left: 24px;     /* default; we compute real left */
+    width: 320px;   /* default; we compute real width */
+    padding: 6px 10px;
+    background: rgba(24, 28, 38, .75);
+    border: 1px solid rgba(255, 255, 255, .12);
+    border - radius: 10px;
+    backdrop - filter: blur(6px);
+    box - shadow: 0 10px 24px rgba(0, 0, 0, .35);
+  }
+      .hs - float input[type = "range"]{
+    -webkit - appearance: none; appearance: none;
+    width: 100 %; height: 8px; background: transparent; margin: 0;
+  }
+      .hs - float input[type = "range"]:: -webkit - slider - runnable - track{
+    height: 8px; background: #3b4a63; border - radius: 5px;
+  }
+      .hs - float input[type = "range"]:: -webkit - slider - thumb{
+    -webkit - appearance: none; width: 18px; height: 18px;
+    background: #8fb0ff; border - radius: 50 %; margin - top: -5px;
+    box - shadow: 0 2px 6px rgba(0, 0, 0, .35);
+  }
+      .hs - float input[type = "range"]:: -moz - range - track{
+    height: 8px; background: #3b4a63; border - radius: 5px;
+  }
+      .hs - float input[type = "range"]:: -moz - range - thumb{
+    width: 16px; height: 16px; background: #8fb0ff; border - radius: 50 %;
+  }
+  `;
     document.head.appendChild(styleEl);
   }
 
   function findWrap() {
-    // Your scroll container (.scroll-x)
     const viaClass = document.querySelector('.scroll-x');
     if (viaClass) return viaClass;
-
-    // Fallbacks
     const tbody = document.querySelector('#membersTbody');
     if (tbody) {
       const byClosest = tbody.closest('.scroll-x');
       if (byClosest) return byClosest;
       if (tbody.parentElement) return tbody.parentElement;
-    }
-    const table = document.querySelector('#membersTable');
-    if (table) {
-      const byClosest = table.closest('.scroll-x');
-      if (byClosest) return byClosest;
-      return table.parentElement;
     }
     return null;
   }
@@ -304,13 +508,10 @@ const FLOAT_HSCROLL = (function () {
   function layout() {
     if (!wrap || !sliderWrap) return;
     const rect = wrap.getBoundingClientRect();
-
-    // show only when the table container is on screen
     const visible = rect.bottom > 0 && rect.top < window.innerHeight;
     sliderWrap.style.display = visible ? 'block' : 'none';
     if (!visible) return;
 
-    // Align slider width/left to the visible part of the table container
     const margin = 16;
     const left = Math.max(margin, rect.left);
     const rightLimit = window.innerWidth - margin;
@@ -319,7 +520,6 @@ const FLOAT_HSCROLL = (function () {
     sliderWrap.style.left = left + 'px';
     sliderWrap.style.width = width + 'px';
 
-    // Update slider range to match scrollable range
     const max = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
     slider.max = String(max);
     if (!suppress) {
@@ -345,7 +545,6 @@ const FLOAT_HSCROLL = (function () {
       sliderWrap.appendChild(slider);
       document.body.appendChild(sliderWrap);
 
-      // range -> table
       slider.addEventListener('input', () => {
         if (suppress) return;
         suppress = true;
@@ -353,7 +552,6 @@ const FLOAT_HSCROLL = (function () {
         suppress = false;
       });
 
-      // table -> range
       wrap.addEventListener('scroll', () => {
         if (suppress) return;
         suppress = true;
@@ -361,37 +559,16 @@ const FLOAT_HSCROLL = (function () {
         suppress = false;
       });
 
-      // keep things aligned
       ro = new ResizeObserver(layout);
       ro.observe(wrap);
       if (wrap.firstElementChild) ro.observe(wrap.firstElementChild);
       window.addEventListener('resize', layout);
       window.addEventListener('scroll', layout, { passive: true });
     }
-
     layout();
   }
 
   return { init, sync: layout };
 })();
-
-async function loadAllBeneficiaries(ids) {
-  setMsg('Loading beneficiaries…');
-  beneficiariesMap.clear();
-  const pageSize = 2000; // efficient in chunks
-  for (let i = 0; i < ids.length; i += pageSize) {
-    const slice = ids.slice(i, i + pageSize);
-    const { data, error } = await supabase
-      .from('beneficiaries')
-      .select('member_id, relation, last_name, first_name, middle_name, birth_date, age, address')
-      .in('member_id', slice)
-      .order('last_name', { ascending: true });
-    if (error) throw error;
-    (data || []).forEach(b => {
-      if (!beneficiariesMap.has(b.member_id)) beneficiariesMap.set(b.member_id, []);
-      beneficiariesMap.get(b.member_id).push(b);
-    });
-  }
-}
 
 window.addEventListener('DOMContentLoaded', boot);

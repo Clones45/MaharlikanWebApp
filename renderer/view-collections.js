@@ -65,7 +65,7 @@ function updatePeriodLabel() {
   const m = parseInt(monthSel.value, 10);
   const y = parseInt(yearSel.value, 10);
   const monthName = new Date(y, m - 1, 1).toLocaleString(undefined, { month: 'long' });
-  periodEl.textContent = `Collections Reflected for ${monthName} ${y}`;
+  periodEl.textContent = `Collections Reflected for ${monthName} ${y} (Cutoff: 7th - 6th)`;
 }
 
 /* ---------- Data Load & Render (collection_month accurate) ---------- */
@@ -88,17 +88,41 @@ async function loadAndRender() {
       return;
     }
 
-    const [yNum, mNum] = targetMonth.split('-').map(Number);
-    const startDate = `${targetMonth}-01`;
-    const lastDay = new Date(yNum, mNum, 0).getDate();
-    const endDate = `${targetMonth}-${lastDay}`;
+    // 📅 Cutoff Logic: 7th of selected month -> 6th of NEXT month
+    // Example: "November Collection" = Nov 7 - Dec 6
+    // NOTE: User said "from november 7 - december 6 it should be store in my november collection"
 
-    // 🔍 Query (matches collection_month OR date_paid range)
-    // Syntax: .or(cond1,cond2,and(cond3,cond4))
+    const [yNum, mNum] = targetMonth.split('-').map(Number);
+
+    // JS Months are 0-indexed (0=Jan, 10=Nov, 11=Dec)
+    // mNum is 1-indexed (11 for Nov)
+    // So "November" in Date obj is (yNum, mNum - 1)
+
+    // Start Date: 7th of current month
+    const startObj = new Date(yNum, mNum - 1, 7);
+
+    // End Date: 6th of NEXT month
+    const endObj = new Date(yNum, mNum, 6); // mNum is "next month" index because 0-based index matches 1-based next month
+
+    // Format YYYY-MM-DD
+    const toISODate = (d) => {
+      const year = d.getFullYear();
+      const mon = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${mon}-${day}`;
+    };
+
+    const startDate = toISODate(startObj);
+    const endDate = toISODate(endObj);
+
+    console.log(`📅 Cutoff Range for ${targetMonth}: ${startDate} to ${endDate}`);
+
+    // 🔍 Query: Strictly match date_paid within the cutoff range
     const { data, error } = await SB
       .from('collections')
       .select('maf_no, last_name, first_name, address, plan_type, payment, or_no, payment_for, date_paid, collection_month')
-      .or(`collection_month.eq.${targetMonth},collection_month.eq.${targetMonth}-01,and(date_paid.gte.${startDate},date_paid.lte.${endDate})`)
+      .gte('date_paid', startDate)
+      .lte('date_paid', endDate)
       .order('date_paid', { ascending: false });
 
     console.log("✅ Supabase returned:", data);

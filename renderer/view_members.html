@@ -14,6 +14,46 @@
 
   <style>
     /* === App background (same feel as the menu) === */
+    .badge-lapsed {
+      display: inline-block;
+      background: #d32f2f;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+
+    /* Lapsed row highlight - use !important to override striping if needed, 
+       but we want it subtle. The specific td selector helps specificity. */
+    table.grid tbody tr.row-lapsed td {
+      background: rgba(211, 47, 47, 0.15);
+    }
+
+    table.grid tbody tr.row-lapsed:hover td {
+      background: rgba(211, 47, 47, 0.25);
+    }
+
+    .badge-at-risk {
+      display: inline-block;
+      background: #fbbf24;
+      color: #1f2937;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+
+    table.grid tbody tr.row-at-risk td {
+      background: rgba(251, 191, 36, 0.15);
+    }
+
+    table.grid tbody tr.row-at-risk:hover td {
+      background: rgba(251, 191, 36, 0.25);
+    }
+
     .app-bg {
       position: fixed;
       inset: 0;
@@ -182,43 +222,239 @@
 
     table.grid {
       width: 100%;
-      min-width: 1400px;
-      border-collapse: collapse;
+      min-width: 2400px;
+      /* Increased to accommodate proper column widths */
+      border-collapse: separate;
+      border-spacing: 0;
       color: #dce5f3;
+      font-variant-numeric: tabular-nums;
+      /* Ensures numbers align properly */
+      table-layout: fixed;
+      /* Critical for consistent column widths */
     }
 
+    /* ===== COLUMN WIDTH DEFINITIONS (25 Columns) ===== */
+
+    /* 1. AF No */
+    table.grid colgroup col:nth-child(1) {
+      width: 90px;
+    }
+
+    /* 2. Last Name */
+    table.grid colgroup col:nth-child(2) {
+      width: 140px;
+    }
+
+    /* 3. First Name */
+    table.grid colgroup col:nth-child(3) {
+      width: 140px;
+    }
+
+    /* 4. Middle Name */
+    table.grid colgroup col:nth-child(4) {
+      width: 140px;
+    }
+
+    /* 5. Address */
+    table.grid colgroup col:nth-child(5) {
+      width: 350px;
+    }
+
+    /* 6. Contact No */
+    table.grid colgroup col:nth-child(6) {
+      width: 160px;
+    }
+
+    /* 7. Religion */
+    table.grid colgroup col:nth-child(7) {
+      width: 150px;
+    }
+
+    /* 8. Birth Date */
+    table.grid colgroup col:nth-child(8) {
+      width: 110px;
+    }
+
+    /* 9. Age */
+    table.grid colgroup col:nth-child(9) {
+      width: 60px;
+    }
+
+    /* 10. Monthly Due */
+    table.grid colgroup col:nth-child(10) {
+      width: 120px;
+    }
+
+    /* 11. Plan Type */
+    table.grid colgroup col:nth-child(11) {
+      width: 150px;
+    }
+
+    /* 12. Contracted Price */
+    table.grid colgroup col:nth-child(12) {
+      width: 130px;
+    }
+
+    /* 13. Date Joined */
+    table.grid colgroup col:nth-child(13) {
+      width: 110px;
+    }
+
+    /* 14. Balance */
+    table.grid colgroup col:nth-child(14) {
+      width: 120px;
+    }
+
+    /* 15. Gender */
+    table.grid colgroup col:nth-child(15) {
+      width: 90px;
+    }
+
+    /* 16. Civil Status */
+    table.grid colgroup col:nth-child(16) {
+      width: 100px;
+    }
+
+    /* 17. Zipcode */
+    table.grid colgroup col:nth-child(17) {
+      width: 80px;
+    }
+
+    /* 18. Birthplace */
+    table.grid colgroup col:nth-child(18) {
+      width: 200px;
+    }
+
+    /* 19. Nationality */
+    table.grid colgroup col:nth-child(19) {
+      width: 100px;
+    }
+
+    /* 20. Height */
+    table.grid colgroup col:nth-child(20) {
+      width: 80px;
+    }
+
+    /* 21. Weight */
+    table.grid colgroup col:nth-child(21) {
+      width: 80px;
+    }
+
+    /* 22. Casket Type */
+    table.grid colgroup col:nth-child(22) {
+      width: 140px;
+    }
+
+    /* 23. Membership */
+    table.grid colgroup col:nth-child(23) {
+      width: 140px;
+    }
+
+    /* 24. Occupation */
+    table.grid colgroup col:nth-child(24) {
+      width: 150px;
+    }
+
+    /* 25. Agent */
+    table.grid colgroup col:nth-child(25) {
+      width: 140px;
+    }
+
+    /* ===== HEADER STYLING ===== */
     table.grid thead th {
       position: sticky;
       top: 0;
       z-index: 3;
-      background: #2f3949;
+      background: linear-gradient(180deg, #3a4556 0%, #2f3949 100%);
       color: #f8fafc;
-      padding: 10px;
-      font-size: 13px;
-      border-bottom: 1px solid #263142;
+      padding: 14px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border-bottom: 2px solid #4a5568;
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
       text-align: left;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
+    table.grid thead th:last-child {
+      border-right: none;
+    }
+
+    /* ===== CELL STYLING ===== */
     table.grid td {
-      padding: 9px 10px;
+      padding: 12px;
       font-size: 13px;
       color: #e6edf3;
       background: #0f1420;
       border-bottom: 1px solid #1b2534;
+      border-right: 1px solid rgba(255, 255, 255, 0.04);
+      vertical-align: middle;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
+    table.grid td:last-child {
+      border-right: none;
+    }
+
+    /* ===== SPECIFIC COLUMN ALIGNMENTS ===== */
+    /* Center alignment for short data */
+    table.grid td:nth-child(5),
+    /* Gender */
+    table.grid td:nth-child(8),
+    /* Zipcode */
+    table.grid td:nth-child(12),
+    /* Age */
+    table.grid td:nth-child(13),
+    /* Height */
+    table.grid td:nth-child(14),
+    /* Weight */
+    table.grid td:nth-child(18),
+    /* Status */
+    table.grid thead th:nth-child(5),
+    table.grid thead th:nth-child(8),
+    table.grid thead th:nth-child(12),
+    table.grid thead th:nth-child(13),
+    table.grid thead th:nth-child(14),
+    table.grid thead th:nth-child(18) {
+      text-align: center;
+    }
+
+    /* Right alignment for numbers */
+    table.grid td:nth-child(17),
+    /* Membership (monthly_due) */
+    table.grid td:nth-child(20),
+    /* Contracted Price */
+    table.grid td:nth-child(22),
+    /* Balance */
+    table.grid thead th:nth-child(17),
+    table.grid thead th:nth-child(20),
+    table.grid thead th:nth-child(22) {
+      text-align: right;
+    }
+
+    /* ===== ROW STYLING ===== */
     table.grid tbody tr:nth-child(even) td {
       background: #111827;
     }
 
     table.grid tbody tr:hover td {
-      background: #162033;
+      background: #1a2332;
+      cursor: pointer;
+      transition: background 0.15s ease;
     }
 
+    /* ===== BENEFICIARIES ROW ===== */
     .beneficiaries-row td {
-      background: #0f1b31;
+      background: #0f1b31 !important;
       padding: 0 0 8px;
+      border-right: none;
     }
 
     .card-footer {
@@ -320,8 +556,24 @@
       <div class="toolbar">
         <div class="toolbar-left">
           <button id="toggleBeneficiariesBtn" class="btn">Show Beneficiaries</button>
+          <span
+            style="margin: 0 8px; border-left: 1px solid rgba(255,255,255,0.2); height: 20px; display: inline-block; vertical-align: middle;"></span>
+          <button id="filterLapsedBtn" class="btn"
+            style="background:#2d3748; border: 1px solid #ef4444;">LAPSED</button>
+          <span
+            style="margin: 0 8px; border-left: 1px solid rgba(255,255,255,0.2); height: 20px; display: inline-block; vertical-align: middle;"></span>
+          <button id="filterCardBtn" class="btn" style="background:#2d3748">CARD</button>
+          <button id="filterDeferredBtn" class="btn" style="background:#2d3748">DEFERRED</button>
+          <button id="filterNonDeferredBtn" class="btn" style="background:#2d3748">NON-DEFERRED</button>
+          <button id="filterAtRiskBtn" class="btn" style="background:#2d3748">AT RISK</button>
         </div>
         <input id="searchInput" type="text" placeholder="Search members...">
+
+        <div id="paginationControls" style="display: flex; gap: 8px; align-items: center;">
+          <button id="prevPageBtn" class="btn" style="background: #2d3748;">Prev</button>
+          <span id="pageIndicator" style="color: #9aa4b2; font-size: 14px; font-weight: 600;">Page 1</span>
+          <button id="nextPageBtn" class="btn" style="background: #2d3748;">Next</button>
+        </div>
         <button id="printBtn" class="btn">Print Table</button>
         <button id="refreshBtn" class="btn">Refresh</button>
         <span id="statusText" class="muted"></span>
@@ -333,30 +585,58 @@
       <div class="table-wrap">
         <div class="scroll-x">
           <table id="membersTable" class="grid">
+            <colgroup>
+              <col /> <!-- AF No -->
+              <col /> <!-- Last Name -->
+              <col /> <!-- First Name -->
+              <col /> <!-- Middle Name -->
+              <col /> <!-- Address -->
+              <col /> <!-- Contact No -->
+              <col /> <!-- Religion -->
+              <col /> <!-- Birth Date -->
+              <col /> <!-- Age -->
+              <col /> <!-- Monthly Due -->
+              <col /> <!-- Plan Type -->
+              <col /> <!-- Contracted Price -->
+              <col /> <!-- Date Joined -->
+              <col /> <!-- Balance -->
+              <col /> <!-- Gender -->
+              <col /> <!-- Civil Status -->
+              <col /> <!-- Zipcode -->
+              <col /> <!-- Birthplace -->
+              <col /> <!-- Nationality -->
+              <col /> <!-- Height -->
+              <col /> <!-- Weight -->
+              <col /> <!-- Casket Type -->
+              <col /> <!-- Membership -->
+              <col /> <!-- Occupation -->
+              <col /> <!-- Agent -->
+            </colgroup>
             <thead>
               <tr>
                 <th>AF No</th>
                 <th>Last Name</th>
                 <th>First Name</th>
                 <th>Middle Name</th>
-                <th>Gender</th>
-                <th>Civil Status</th>
                 <th>Address</th>
-                <th>Zipcode</th>
-                <th>Birth Date</th>
-                <th>Birthplace</th>
-                <th>Nationality</th>
-                <th>Age</th>
-                <th>Height</th>
-                <th>Weight</th>
+                <th>Contact No</th>
                 <th>Religion</th>
-                <th>Contact No.</th>
-                <th>Membership</th>
-                <th>Package Type</th>
+                <th>Birth Date</th>
+                <th>Age</th>
+                <th>Monthly Due</th>
+                <th>Plan Type</th>
                 <th>Contracted Price</th>
                 <th>Date Joined</th>
                 <th>Balance</th>
+                <th>Gender</th>
+                <th>Civil Status</th>
+                <th>Zipcode</th>
+                <th>Birthplace</th>
+                <th>Nationality</th>
+                <th>Height</th>
+                <th>Weight</th>
                 <th>Casket Type</th>
+                <th>Membership</th>
                 <th>Occupation</th>
                 <th>Agent</th>
               </tr>
@@ -368,7 +648,8 @@
         </div>
       </div>
 
-      <footer class="card-footer">
+      <footer class="card-footer" style="display: flex; gap: 10px; align-items: center; justify-content: flex-end;">
+
         <a href="./index.html" class="btn">Menu</a>
       </footer>
     </main>
