@@ -2,6 +2,8 @@
 // Includes splash alerts and a toggle to clear/keep the form after update.
 
 const SB = window.SB;
+console.log("EDIT-MEMBER VERSION CHECK — BUILD #9");
+
 
 /** =========================
  *  Behavior toggle
@@ -255,61 +257,157 @@ async function onUpdate() {
   const memberId = document.getElementById("member_id").value;
   if (!memberId) return showSplash("No member loaded.", "error");
 
+  // 🧩 1. Network check
+  if (!navigator.onLine) {
+    return showSplash("No internet connection. Please reconnect and retry.", "error");
+  }
+
   // Build payload from form fields (skip hidden id & agentSelect itself)
+  // 🧩 Build payload from form fields (skip hidden id & agentSelect)
   const payload = {};
   form.querySelectorAll("input, select, textarea").forEach(inp => {
     if (inp.id && inp.id !== "member_id" && inp.id !== "agentSelect") {
-      payload[inp.id] = inp.value?.trim?.() ?? inp.value;
+      // 🧹 Trim and normalize the key name and value
+      const cleanKey = inp.id.trim().replace(/\s+/g, "_").toLowerCase();
+      const cleanValue = typeof inp.value === "string" ? inp.value.trim() : inp.value;
+      payload[cleanKey] = cleanValue;
     }
   });
+
+  // ✅ Normalize any edge case key (safety fallback)
+  if (payload["phone_number"]) {
+    payload.phone_number = payload["phone_number"];
+    delete payload["phone_number"];
+  }
+
 
   // Agent: store agent_id (int) on members
   if (agentSelect) {
     payload.agent_id = agentSelect.value ? Number(agentSelect.value) : null;
   }
 
+  // 🧩 3. Validate required fields
+  if (!payload.first_name || !payload.last_name) {
+    return showSplash("First and last name are required.", "error");
+  }
+
+  if (payload.age && isNaN(Number(payload.age))) {
+    return showSplash("Age must be a valid number.", "error");
+  }
+
+  // 🧩 4. Sanitize types
+  ["age", "agent_id"].forEach(k => {
+    if (payload[k] === "") payload[k] = null;
+    if (payload[k] != null) payload[k] = Number(payload[k]);
+  });
+  if (payload.birth_date && isNaN(new Date(payload.birth_date).getTime())) {
+    delete payload.birth_date; // remove invalid date
+  }
+
   try {
-    // Update member
-    const { error: upErr } = await SB.from("members")
+    console.log("[onUpdate] Payload:", payload);
+
+    // 🔍 Normalize possible field naming issues before cleaning
+    // 🔍 Normalize possible field naming issues before cleaning
+    if (payload.contact_number) {
+      payload.phone_number = payload.contact_number;
+      delete payload.contact_number;
+    }
+    if (payload.contactNumber) {
+      payload.phone_number = payload.contactNumber;
+      delete payload.contactNumber;
+    }
+    if (payload["contact number"]) {
+      payload.phone_number = payload["contact number"];
+      delete payload["contact number"];
+    }
+
+
+
+    // 🧩 5. Update member
+    // 🧩 5. Update member — sanitize payload first
+    const validKeys = [
+      "maf_no",
+      "last_name",
+      "first_name",
+      "middle_name",
+      "address",
+      "phone_number",
+      "religion",
+      "birth_date",
+      "age",
+      "monthly_due",
+      "plan_type",
+      "contracted_price",
+      "date_joined",
+      "balance",
+      "gender",
+      "civil_status",
+      "zipcode",
+      "birthplace",
+      "nationality",
+      "height",
+      "weight",
+      "casket_type",
+      "membership",
+      "occupation",
+      "agent_id",
+      "status",
+      "plan_start_date",
+      "membership_paid",
+      "membership_paid_date"
+    ];
+
+    // Strip any fields not defined in 'members' schema
+    Object.keys(payload).forEach((k) => {
+      if (!validKeys.includes(k)) delete payload[k];
+    });
+
+    console.log("[onUpdate] Cleaned Payload:", payload);
+
+    const { error: upErr } = await SB
+      .from("members")
       .update(payload)
       .eq("id", memberId);
-    if (upErr) throw upErr;
 
-    // Replace beneficiaries (delete -> insert)
+
+    if (upErr) {
+      console.error("[Update Member] Error:", upErr);
+      throw upErr;
+    }
+    showSplash("Member record updated successfully!", "success");
+
+
+    // 🧩 6. Replace beneficiaries safely
     const { error: delErr } = await SB
       .from("beneficiaries")
       .delete()
       .eq("member_id", memberId);
-    if (delErr) throw delErr;
-
-    // Replace your current beneRows build with this:
-const cards = Array.from(beneContainer.querySelectorAll(".bene-card"));
-
-const beneRows = cards.map(card => {
-  const get = (sel) => (card.querySelector(sel)?.value ?? "").trim();
-  const ageVal = card.querySelector(".b-age")?.value;
-
-  return {
-    member_id: Number(memberId),
-    last_name: get(".b-last"),
-    first_name: get(".b-first"),
-    middle_name: get(".b-middle"),
-    relation: get(".b-relation"),
-    address: get(".b-address"),
-    birth_date: get(".b-birth") || null,
-    age: ageVal ? parseInt(ageVal, 10) : null,
-  };
-}).filter(r => r.last_name || r.first_name);
-
-
-    if (beneRows.length > 0) {
-      const { error: insErr } = await SB.from("beneficiaries").insert(beneRows);
-      if (insErr) throw insErr;
+    if (delErr) {
+      console.error("[Delete Beneficiaries] Error:", delErr);
+      throw delErr;
     }
 
-    // === Post-save behavior ===
+    const cards = Array.from(beneContainer.querySelectorAll(".bene-card"));
+    const beneRows = cards.map(card => {
+      const get = (sel) => (card.querySelector(sel)?.value ?? "").trim();
+      const ageVal = card.querySelector(".b-age")?.value;
+
+      return {
+        member_id: Number(memberId),
+        last_name: get(".b-last"),
+        first_name: get(".b-first"),
+        middle_name: get(".b-middle"),
+        relation: get(".b-relation"),
+        address: get(".b-address"),
+        birth_date: get(".b-birth") || null,
+        age: ageVal ? parseInt(ageVal, 10) : null,
+      };
+    }).filter(r => r.last_name || r.first_name);
+
+
+    // 🧩 7. Post-save behavior
     if (CLEAR_AFTER_UPDATE) {
-      // Clear & return to search state
       form.reset();
       beneContainer.innerHTML = `<p class="muted">No beneficiaries found.</p>`;
       if (agentSelect) agentSelect.value = "";
@@ -318,7 +416,6 @@ const beneRows = cards.map(card => {
       searchMsg.textContent = "Saved. You can search another member.";
       showSplash("Member updated successfully! Form cleared.");
     } else {
-      // Keep fields filled: re-fetch saved row and re-render
       const { data: fresh, error: refErr } = await SB
         .from("members")
         .select("*")
@@ -329,12 +426,39 @@ const beneRows = cards.map(card => {
       }
       showSplash("Member updated successfully!");
     }
-  } catch (err) {
-    console.error(err);
-    showSplash("Update failed. See console.", "error");
-  }
-}
 
+  } catch (err) {
+    console.error("[onUpdate] Exception:", err);
+
+    // 🧩 8. Friendly error messages for normal users
+    let msg = "Something went wrong while saving your changes.";
+
+    // Handle specific PostgreSQL or network codes/messages
+    if (err.code === "42501") {
+      msg = "You don't have permission to perform this action. Please contact the administrator.";
+    }
+    else if (err.message?.includes("invalid input syntax for type date")) {
+      msg = "Please fill in all date fields correctly (e.g., Birth Date ). Put 01/01/2000 if not applicable";
+    }
+    else if (err.message?.includes("duplicate key value")) {
+      msg = "A record with this Member ID or contact number already exists. Please check and try again.";
+    }
+    else if (err.message?.includes("violates foreign key constraint")) {
+      msg = "This record is linked to other data and can’t be updated right now.";
+    }
+    else if (err.message?.includes("22007")) {
+      // Postgres code for date syntax errors
+      msg = "One or more date fields are invalid. Please use the format YYYY-MM-DD (for example: 2024-12-25).";
+    }
+    else if (err.message?.includes("22P02")) {
+      // Postgres invalid_text_representation
+      msg = "Some number fields contain invalid characters. Please check that only numbers are entered.";
+    }
+
+    showSplash(msg, "error");
+  }
+
+}
 /* =========================
    Delete
    ========================= */

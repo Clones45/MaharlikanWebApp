@@ -1,6 +1,6 @@
 {
   "name": "maharlikan-admin-desktop",
-  "version": "1.2.3",
+  "version": "1.5.0",
   "description": "Maharlikan AssuredLife — Admin Desktop App",
   "author": "Clyde Granada",
   "main": "main.js",
@@ -16,6 +16,9 @@
     "appId": "com.maharlikan.admin",
     "productName": "Maharlikan Admin",
     "asar": true,
+    "asarUnpack": [
+      "**/node_modules/@supabase/**"
+    ],
     "directories": {
       "output": "dist"
     },
@@ -64,7 +67,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.76.1",
-    "dotenv": "^17.2.3",
+    "dotenv": "^16.4.5",
     "electron-updater": "^6.6.2"
   }
 }

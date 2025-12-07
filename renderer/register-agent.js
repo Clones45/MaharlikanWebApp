@@ -1,6 +1,6 @@
 /*******************************
  * SUPABASE INITIALIZATION FIX *
- *******************************
+ *******************************/
 
 /**********************
  * Helpers / UI sugar *
@@ -98,24 +98,33 @@ document.querySelectorAll('[data-toggle="pw"]').forEach((btn) => {
 /************************************
  * Supabase helpers for edge calls  *
  ************************************/
-const ADMIN_SECRET =
-  (window.__ENV__ && window.__ENV__.ADMIN_PORTAL_SECRET) || "LOVE";
+let ADMIN_SECRET = "LOVE";
 
 async function edgeCreateUser(body) {
   if (!window.SB || !window.SB.functions) {
     throw new Error("Supabase client not ready.");
   }
 
-  const { data, error } = await SB.functions.invoke("admin-create-user", {
-    headers: { "x-admin-secret": ADMIN_SECRET },
-    body,
-  });
+  try {
+    const { data, error } = await SB.functions.invoke("admin-create-user", {
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-secret": ADMIN_SECRET,
+      },
+      body: JSON.stringify(body),
+    });
 
-  if (error) throw new Error(error.message || "Edge function error");
-  if (data?.error) throw new Error(data.error);
-  if (!data?.ok) throw new Error("Edge function did not return ok");
+    console.log("[edgeCreateUser] response:", data, error);
 
-  return data;
+    if (error) throw new Error(error.message || "Edge function error");
+    if (data?.error) throw new Error(data.error);
+    if (!data?.ok) throw new Error("Edge function did not return ok");
+
+    return data;
+  } catch (err) {
+    console.error("[edgeCreateUser] failed:", err);
+    throw err;
+  }
 }
 
 async function edgeSetPassword(body) {
@@ -123,16 +132,26 @@ async function edgeSetPassword(body) {
     throw new Error("Supabase client not ready.");
   }
 
-  const { data, error } = await SB.functions.invoke("admin-set-password", {
-    headers: { "x-admin-secret": ADMIN_SECRET },
-    body,
-  });
+  try {
+    const { data, error } = await SB.functions.invoke("admin-set-password", {
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-secret": ADMIN_SECRET,
+      },
+      body: JSON.stringify(body),
+    });
 
-  if (error) throw new Error(error.message || "Edge function error");
-  if (data?.error) throw new Error(data.error);
-  if (!data?.ok) throw new Error("Password function did not return ok");
+    console.log("[edgeSetPassword] response:", data, error);
 
-  return data;
+    if (error) throw new Error(error.message || "Edge function error");
+    if (data?.error) throw new Error(data.error);
+    if (!data?.ok) throw new Error("Password function did not return ok");
+
+    return data;
+  } catch (err) {
+    console.error("[edgeSetPassword] failed:", err);
+    throw err;
+  }
 }
 
 /********************
@@ -163,7 +182,7 @@ async function loadAgents() {
     });
   } catch (err) {
     console.error("[loadAgents]", err);
-    sel.innerHTML = '<option value="">Cannot load agents</option>';
+    sel.innerHTML = `<option value="">Error: ${err.message}</option>`;
   }
 }
 
@@ -188,7 +207,7 @@ async function loadHeadAgents() {
     });
   } catch (err) {
     console.error("[loadHeadAgents]", err);
-    sel.innerHTML = '<option value="">Cannot load agents</option>';
+    sel.innerHTML = `<option value="">Error: ${err.message}</option>`;
   }
 }
 
@@ -217,7 +236,7 @@ async function loadAccounts() {
     });
   } catch (err) {
     console.error("[loadAccounts]", err);
-    sel.innerHTML = '<option value="">Cannot load accounts</option>';
+    sel.innerHTML = `<option value="">Error: ${err.message}</option>`;
   }
 }
 
@@ -261,7 +280,7 @@ async function onCreateNew() {
     const username = na.username.value.trim();
     const inputEmail = na.email ? na.email.value.trim() : "";
     const email = inputEmail || `${username.toLowerCase()}@maharlikan.local`;
-    const role = na.role.value || "agent";
+    const role = (na.role.value || "agent").toLowerCase();
 
     await edgeCreateUser({
       username,
@@ -296,7 +315,7 @@ async function onAttachAccount() {
     const username = ex.username.value.trim();
     const inputEmail = ex.email ? ex.email.value.trim() : "";
     const email = inputEmail || `${username.toLowerCase()}@maharlikan.local`;
-    const role = ex.role.value || "agent";
+    const role = (ex.role.value || "agent").toLowerCase();
 
     await edgeCreateUser({
       username,
@@ -354,12 +373,77 @@ async function onResetPassword() {
  * Boot / wire  *
  ****************/
 window.addEventListener("DOMContentLoaded", async () => {
-  if (!window.SB) {
-    console.warn("Supabase client (SB) not found on window. Check init in HTML.");
-    showSplash("Error", "Supabase not initialized on this page.", "error");
-    return;
+  // 1. Fetch Environment Variables
+  let env = {};
+  if (window.electronAPI?.getEnv) {
+    try {
+      env = await window.electronAPI.getEnv();
+    } catch (e) {
+      console.error("[register-agent] Failed to get env:", e);
+    }
   }
 
+  // 2. Initialize Supabase if not already present
+  if (!window.SB) {
+    const sbUrl = env.SUPABASE_URL;
+    const sbKey = env.SUPABASE_ANON_KEY;
+
+    if (!sbUrl || !sbKey) {
+      console.error("Missing Supabase credentials in env.");
+      showSplash("Error", "Missing Supabase configuration.", "error");
+      return;
+    }
+
+    if (!window.supabase || !window.supabase.createClient) {
+      console.error("Supabase JS library not loaded.");
+      showSplash("Error", "Supabase library not loaded.", "error");
+      return;
+    }
+
+    if (env.ADMIN_PORTAL_SECRET) {
+      ADMIN_SECRET = env.ADMIN_PORTAL_SECRET;
+    }
+
+    // 🛑 CRITICAL: Use dummy storage to prevent clearing main window's localStorage
+    const dummyStorage = {
+      getItem: () => null,
+      setItem: () => { },
+      removeItem: () => { },
+    };
+
+    window.SB = window.supabase.createClient(sbUrl, sbKey, {
+      auth: {
+        persistSession: false,      // Don't duplicate storage
+        autoRefreshToken: true,     // ✅ ENABLE: Auto-refresh tokens
+        detectSessionInUrl: false,
+        storage: dummyStorage       // ✅ ISOLATE from localStorage
+      },
+    });
+
+    // ✅ Listen for token refresh events
+    window.SB.auth.onAuthStateChange((event) => {
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('[register-agent] ✅ Token auto-refreshed');
+      }
+    });
+
+    console.log("Supabase initialized in register-agent.js");
+
+    // 2b. Set Session from URL if present
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("access_token");
+    const refresh = params.get("refresh_token");
+    if (token && refresh) {
+      console.log("Setting session from URL token...");
+      const { error } = await window.SB.auth.setSession({
+        access_token: token,
+        refresh_token: refresh,
+      });
+      if (error) console.warn("Failed to set session:", error);
+    }
+  }
+
+  // 3. Load Data
   await Promise.all([loadAgents(), loadAccounts(), loadHeadAgents()]);
   na.createBtn?.addEventListener("click", onCreateNew);
   ex.attachBtn?.addEventListener("click", onAttachAccount);

@@ -4,93 +4,128 @@
   <meta charset="utf-8" />
   <title>Commission Summary — Maharlikan</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Supabase SDK v2 -->
+
+  <!-- Supabase SDK -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <!-- jsPDF + autotable for export -->
+  <!-- jsPDF + autotable -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
+
   <style>
-    :root{--bg:#0b0e14;--card:#171b22;--muted:#9aa7b7;--text:#e8eef7;--accent:#4a78ff;--accent-2:#2a3240;}
-    html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
-    .page{min-height:100%;display:grid;place-items:center;padding:24px}
-    .card{width:min(1000px,calc(100vw - 32px));background:linear-gradient(180deg,#1b2028,#141820);
-      border:1px solid #272c36;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.35);padding:22px}
-    .title{margin:6px 6px 14px;text-align:center;font-weight:700;letter-spacing:.2px}
-    .home-btn{position:absolute;top:16px;right:16px;background:var(--accent);color:#fff;border:0;border-radius:8px;
-      padding:6px 12px;font-weight:600;cursor:pointer;transition:filter .2s ease}
-    .home-btn:hover{filter:brightness(.95)}
-    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0 16px}
-    select,button{appearance:none;border:1px solid #2c3445;background:#141a24;color:var(--text);padding:10px 12px;border-radius:10px}
-    button.primary{background:var(--accent);border-color:#4669ff;color:#eef2ff}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    .muted{color:var(--muted)}
-    .period{font-weight:600;margin-left:auto}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:10px;border-bottom:1px solid #232936}
-    th{color:#cfe0ff;text-align:left;background:#111723}
-    td.right{text-align:right}
-    .totalbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:flex-end;margin-top:12px}
-    .chip{background:#0e1219;border:1px solid #2a3140;border-radius:999px;padding:6px 10px;font-size:13px}
-    .toast{position:fixed;left:50%;top:24px;transform:translateX(-50%);background:#1b2333;border:1px solid #2c3548;
-      color:#eef3ff;padding:12px 16px;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.35);opacity:0;pointer-events:none;
-      transition:opacity .24s ease, transform .24s ease;z-index:9999}
-    .toast.show{opacity:1;transform:translateX(-50%) translateY(4px)}
+    :root {
+      --bg:#0b111b; --bg-2:#0e1420;
+      --card:#141a24; --card-2:#101720;
+      --muted:#9fb0c7; --text:#eef3fb;
+      --accent:#4a78ff; --accent-2:#2d57ff;
+      --line:#223043; --good:#12c28c; --warn:#e7b63c;
+      --shadow:0 14px 48px rgba(0,0,0,.35);
+    }
+
+    html, body {height:100%; margin:0; background:linear-gradient(180deg,var(--bg),var(--bg-2)); color:var(--text); font:15.5px/1.45 ui-sans-serif,system-ui,"Segoe UI",Roboto,Ubuntu,"Helvetica Neue",Arial;}
+    .page {min-height:100%; display:grid; place-items:start center; padding:28px;}
+    .card {width:min(1200px,calc(100vw - 40px)); background:linear-gradient(180deg,var(--card),var(--card-2)); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:20px; position:relative;}
+
+    /* Header */
+    .title {margin:4px 6px 14px; text-align:center; font-weight:800; font-size:28px;}
+    .home-btn {position:absolute; top:14px; right:14px; background:var(--accent); color:#fff; border:0; border-radius:10px; padding:8px 12px; font-weight:700; cursor:pointer; transition:0.2s;}
+    .home-btn:hover {filter:brightness(.95);}
+    .home-btn:active {transform:translateY(1px);}
+
+    /* Toolbar */
+    .toolbar {display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px;}
+    label {font-size:12px; color:var(--muted);}
+    select, button {appearance:none; border:1px solid var(--line); background:#0f1622; color:var(--text); padding:9px 12px; border-radius:10px; font-weight:600;}
+    button.primary {background:var(--accent); border-color:#3c62ff; font-weight:800;}
+    button.release {background:var(--good); border:none; font-weight:800; color:#fff;}
+    .period {font-weight:700; margin-left:auto; color:#cfe0ff;}
+
+    /* Agent list */
+    .agentbar {display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; padding:8px; border:1px dashed var(--line); border-radius:12px; background:rgba(16,23,32,.5);}
+    .agent-chip {display:inline-flex; align-items:center; gap:6px; background:#1b2130; border:1px solid #2a3b5f; border-radius:20px; padding:6px 12px; cursor:pointer; transition:.15s;}
+    .agent-chip:hover {border-color:#34507a;}
+    .agent-chip.active {background:rgba(74,120,255,.15); border-color:var(--accent-2);}
+    .agent-chip .initials {width:22px; height:22px; border-radius:50%; background:#2b3b59; display:grid; place-items:center; font-size:12px; font-weight:900;}
+
+    /* Table */
+    .table-wrap {overflow:auto; border:1px solid var(--line); border-radius:12px;}
+    table {width:100%; border-collapse:collapse;}
+    th, td {padding:10px 12px; border-bottom:1px solid #1d2636;}
+    th {background:#0f1724; color:#dbe7ff; font-size:12px; letter-spacing:.3px; text-transform:uppercase;}
+    td {font-weight:600;}
+    td.right {text-align:right;}
+    tr:hover td {background:#0d1421;}
+    tr.total-row td {font-weight:900; color:#cfe0ff; background:#0f1724;}
+
+    /* Totals */
+    .totals {margin-top:12px; display:flex; justify-content:flex-end; align-items:center; gap:16px;}
+    .total-box {font-weight:700; color:#cfe0ff;}
+    .total-box strong {color:var(--good); font-size:18px; margin-left:6px;}
+
+    /* Release Status */
+    .release-status {text-align:right; font-size:13px; color:#a6b7cd; font-weight:700; margin-top:8px;}
+    .release-status span {font-weight:900;}
+
+    /* Toast */
+    .toast {position:fixed; left:50%; top:22px; transform:translateX(-50%); background:#111b2a; border:1px solid #2c3f61; color:#eef3ff; padding:12px 16px; border-radius:12px; box-shadow:var(--shadow); opacity:0; transition:opacity .25s ease; z-index:9999;}
+    .toast.show {opacity:1;}
   </style>
 </head>
 <body>
   <div class="page">
-    <div class="card" style="position:relative">
+    <div class="card">
       <button class="home-btn" onclick="window.location.href='index.html'">🏠 Home</button>
       <h1 class="title">Commission Summary</h1>
 
+      <!-- Filters -->
       <div class="toolbar">
-        <label class="muted">Month
+        <label>Month
           <select id="monthSel"></select>
         </label>
-        <label class="muted">Year
+        <label>Year
           <select id="yearSel"></select>
         </label>
-
         <button id="applyBtn" class="primary">Load Commissions</button>
         <button id="exportBtn">Export PDF</button>
         <button id="printBtn">Print</button>
-
-        <div id="periodLabel" class="period muted"></div>
+        <div id="periodLabel" class="period"></div>
       </div>
 
-      <div class="muted" style="margin-bottom:8px">
-        Showing all commissions earned within the selected month, based on <b>date_earned</b>.
-      </div>
+      <!-- Agent chips -->
+      <div id="agentBar" class="agentbar"></div>
 
-      <div style="overflow:auto;border:1px solid #232936;border-radius:10px">
+      <!-- Table: Commission Summary -->
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th style="width:140px">Date Earned</th>
-              <th style="width:220px">Agent</th>
-              <th>Type</th>
-              <th style="width:120px">Plan</th>
-              <th class="right" style="width:140px">Amount</th>
+              <th>Agent</th>
+              <th class="right">Monthly</th>
+              <th class="right">Overrides</th>
+              <th class="right">Outright</th>
+              <th class="right">Recruiter</th>
+              <th class="right">Status</th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="5" class="muted" style="text-align:center">Loading…</td></tr>
+            <tr><td colspan="6" class="muted" style="text-align:center;">Loading…</td></tr>
           </tbody>
         </table>
       </div>
 
-      <div class="totalbar">
-        <div class="chip">Monthly: <b id="tMonthly">₱0.00</b></div>
-        <div class="chip">Outright: <b id="tOutright">₱0.00</b></div>
-        <div class="chip">Recruiter: <b id="tRecruiter">₱0.00</b></div>
-        <div class="chip">Total: <b id="tGrand">₱0.00</b></div>
+      <!-- Total Collection -->
+      <div class="totals">
+        <div class="total-box">
+          Total Collection (this month): <strong id="tCollection">₱0.00</strong>
+        </div>
+      </div>
+
+      <div class="release-status">
+        Current Status: <span id="releaseStatus">UNRELEASED</span>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
+  <div id="toast" class="toast"></div>
   <script src="./view_commissions.js"></script>
 </body>
 </html>

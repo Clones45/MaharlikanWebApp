@@ -1,211 +1,193 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
+  
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Statement of Account — Maharlikan AssuredLife</title>
-
-  <!-- Reuse your global desktop styles -->
   <link rel="stylesheet" href="./styles.css" />
 
-  <!-- Page-scoped CSS -->
+  <!-- Supabase + PDF Libraries -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.25/dist/jspdf.plugin.autotable.min.js"></script>
+
   <style>
-    /* ===== Scoped to this page only ===== */
-    #soa-page { padding: 24px; }
-    #soa-page .card {
-      box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.12));
-      border-radius: 16px;
-      background: #fff;
-    }
-    #soa-page .content { padding: 16px; }
+  body {
+    background: #171b22;
+    color: #1e293b;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    margin: 0;
+    padding: 24px;
+  }
 
-    /* Header */
-    #soa-page .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
-    #soa-page .banner { display:flex; align-items:center; gap:10px; }
-    #soa-page .banner img { width:120px; height:auto; }
-    #soa-page h1 { font-size:22px; font-weight:700; color:#0b1f3a; margin:0 0 4px; }
-    #soa-page .muted { color:#334155; font-size:15px; }
+  .card {
+    max-width: 900px;
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 36px 48px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+  }
 
-    /* ✅ Home Button */
-    .home-btn {
-      background:#0b4d87;
-      color:#fff;
-      border:0;
-      border-radius:8px;
-      padding:8px 14px;
-      font-weight:600;
-      cursor:pointer;
-      transition:filter .2s ease;
-    }
-    .home-btn:hover { filter:brightness(0.95); }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 12px;
+    margin-bottom: 28px;
+  }
 
-    /* Toolbar / search */
-    #soa-page .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px; }
-    #soa-page .toolbar .grow { flex:1 1 360px; }
-    #soa-page .btn { height:38px; padding:0 14px; border-radius:8px; border:0; cursor:pointer; background:#0b4d87; color:#fff; }
-    #soa-page .btn:hover { filter:brightness(0.95); }
-    #soa-page .btn.secondary { background:#28a745; }
-    #soa-page .btn.tertiary { background:#ff9800; }
+  .header img {
+    height: 60px;
+    width: auto;
+  }
 
-    /* Search input */
-    #searchInput {
-      background:#fff;
-      border:1.8px solid #c7d3e3;
-      border-radius:8px;
-      padding:10px 14px;
-      font-size:15px;
-      color:#0f172a;
-      width:100%;
-      transition: all .2s ease;
-      box-shadow: inset 0 1px 2px rgba(0,0,0,.03);
-    }
-    #searchInput::placeholder { color:#94a3b8; font-style:italic; }
-    #searchInput:focus {
-      outline:none; border-color:#0b4d87;
-      box-shadow:0 0 0 3px rgba(11,77,135,.15);
-    }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+  }
 
-    /* Scrollable content box */
-    #soa-page .sheet {
-      margin-top:8px;
-      padding:12px;
-      background:#fff;
-      border:1px solid #d0d7e2;
-      border-radius:10px;
-      max-height:65vh;
-      overflow-y:auto;
-      box-shadow:0 4px 12px rgba(0,0,0,.05);
-      scroll-behavior:smooth;
-    }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 30px;
+  }
 
-    /* Custom Scrollbar */
-    #soa-page .sheet::-webkit-scrollbar {
-      width: 10px;
-    }
-    #soa-page .sheet::-webkit-scrollbar-track {
-      background: #eef3f8;
-      border-radius: 10px;
-    }
-    #soa-page .sheet::-webkit-scrollbar-thumb {
-      background: #0b4d87;
-      border-radius: 10px;
-    }
-    #soa-page .sheet::-webkit-scrollbar-thumb:hover {
-      background: #0a3f70;
-    }
+  input {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #111;
+    width: 240px;
+    font-size: 14px;
+  }
 
-    /* Tables */
-    .summary-table, .tx-table { width:100%; border-collapse:collapse; margin:12px 0; }
-    .summary-table th, .summary-table td,
-    .tx-table th, .tx-table td {
-      border:1px solid #e5eaf1;
-      padding:10px;
-      color:#0f172a;
-    }
-    .summary-table th, .tx-table th {
-      background:#0b4d87;
-      color:#fff;
-      text-align:center;
-      font-weight:700;
-    }
-    .summary-table td, .tx-table td { text-align:center; }
+  button {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    font-size: 14px;
+  }
 
-    /* Right details box */
-    .details {
-      border:1.8px solid #c7d3e3;
-      border-radius:10px;
-      padding:12px;
-      background:#f9fbfd;
-      max-width:320px;
-      color:#0f172a;
-      box-shadow:0 2px 6px rgba(0,0,0,0.05);
-    }
-    .details p { margin:6px 0; color:#1e293b; }
-    .details strong { color:#0b4d87; font-weight:600; }
+  button.search { background: #3b82f6; }
+  button.search:hover { background: #2563eb; }
+  button.export { background: #f59e0b; }
+  button.export:hover { background: #d97706; }
+  button.print { background: #22c55e; }
+  button.print:hover { background: #16a34a; }
+  button.home { background: #1e293b; }
+  button.home:hover { background: #334155; box-shadow: 0 0 8px rgba(255,255,255,0.15); }
 
-    .sheet-grid { display:grid; grid-template-columns: 2fr 1fr; gap:14px; }
-    .sheet-grid .full { grid-column: 1 / -1; }
+  .muted { 
+    color: #475569; 
+    text-align: center; 
+    margin: 10px 0; 
+  }
 
-    /* Splash messages */
-    .splash{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.15);z-index:99999;opacity:0;pointer-events:none;transition:opacity .25s ease}
-    .splash.show{opacity:1;pointer-events:auto}
-    .splash-box{min-width:320px;max-width:560px;padding:18px 20px;border-radius:14px;color:#fff;background:#28a745;box-shadow:0 20px 60px rgba(0,0,0,.25);transform:scale(.96);transition:transform .25s ease}
-    .splash.show .splash-box{transform:scale(1)}
-    .splash.error .splash-box{background:#e53935}
-    .splash h4{margin:0 0 6px;font-size:18px}
-    .splash p{margin:0;opacity:.95}
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 14px;
+  }
 
-    /* Muted text */
-    .muted, .no-payments {
-      color:#1e293b;
-      font-size:15px;
-      font-style:italic;
-    }
+  th, td {
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    text-align: left;
+  }
 
-    @media (max-width: 980px) {
-      .sheet-grid { grid-template-columns: 1fr; }
-    }
+  thead th {
+    background: #f3f4f6;
+    font-weight: 700;
+    color: #111827;
+  }
 
-    @media print {
-      .toolbar, #exportBtn, #printBtn, .home-btn { display:none !important; }
-      .sheet { max-height:none; overflow:visible; box-shadow:none; border:0; }
-      .summary-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .tx-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    }
+  tbody td { color: #1f2937; }
+  tfoot th { background: #f9fafb; font-weight: 700; }
+
+  .section-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #111827;
+    margin-top: 20px;
+    margin-bottom: 8px;
+  }
+
+  .toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1b2333;
+    border: 1px solid #2c3548;
+    color: #eef3ff;
+    padding: 12px 16px;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .24s ease, transform .24s ease;
+    z-index: 9999;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(4px); }
+
+  .company-name {
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    color: #0f172a;
+    margin-bottom: 6px;
+  }
+
+  .subtext {
+    text-align: center;
+    color: #64748b;
+    margin-bottom: 24px;
+  }
   </style>
-
-  <!-- jsPDF + AutoTable for export -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
-
-  <!-- Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <!-- Initialize Supabase -->
-  <script>
-    (function initSupabase(){
-      if (window.SB) return;
-      const url = "https://agyueadcymdopgihtckc.supabase.co";
-      const key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFneXVlYWRjeW1kb3BnaWh0Y2tjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzA2NjYsImV4cCI6MjA3NDkwNjY2Nn0.EBYfJ9RTkeGLQptG3uWaOsFMIz9DySu3uhaOlzgeeMw";
-      window.SB = supabase.createClient(url, key);
-    })();
-  </script>
-
-  <!-- Logic -->
-  <script defer src="./soa.js"></script>
 </head>
+
 <body>
-  <div id="soa-page" class="page">
-    <div class="card">
-      <div class="content">
-
-        <div class="header">
-          <div class="banner">
-            <img src="../assets/logo-watermark.png" alt="Maharlikan Logo" />
-            <div>
-              <h1>Statement of Account</h1>
-              <div class="muted">Search, view, and print member statement</div>
-            </div>
-          </div>
-
-          <!-- ✅ Home / Back Button -->
-          <button class="home-btn" onclick="window.location.href='index.html'">🏠 Home</button>
-        </div>
-
-        <div class="toolbar">
-          <div class="grow">
-            <input id="searchInput" type="text" placeholder="🔎 Enter AF / MAF No, First or Last Name" autocomplete="off"/>
-          </div>
-          <button id="searchBtn" class="btn">Search</button>
-          <button id="exportBtn" class="btn secondary">Export PDF</button>
-          <button id="printBtn" class="btn tertiary">Print Page</button>
-        </div>
-
-        <div id="sheet" class="sheet" aria-live="polite">
-          <div class="muted">Enter a member AF/MAF No or name to view SOA.</div>
-        </div>
-
-      </div>
+  <div class="card">
+    <div class="header">
+      <img src="../assets/logo-watermark.png" alt="Maharlikan Logo" />
+      <h1>Statement of Account</h1>
     </div>
+
+    <div class="controls">
+      <input id="searchInput" placeholder="Enter AF/MAF No. or Name" />
+      <button id="searchBtn" class="search">Search</button>
+      <button id="exportBtn" class="export">Export PDF</button>
+      <button id="printBtn" class="print">Print Page</button>
+      <button id="homeBtn" class="home">🏠 Home</button>
+    </div>
+
+    <div class="company-name">Maharlikan Mortuary Care Services</div>
+    <div class="subtext">Official Statement of Account Summary</div>
+
+    <div id="sheet" class="muted">Enter AF/MAF No to view account details.</div>
   </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="./soa.js"></script>
+
+  <script>
+    document.getElementById("homeBtn").addEventListener("click", () => {
+      window.location.replace("index.html");
+    });
+  </script>
 </body>
 </html>

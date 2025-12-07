@@ -1,30 +1,127 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Agent Hierarchy Dashboard</title>
-    <link rel="stylesheet" href="./styles.css" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Hierarchy Dashboard</title>
+  <link rel="stylesheet" href="./styles.css" />
 
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self' 'unsafe-inline' data: blob:;
-               img-src 'self' data:;
-               style-src 'self' 'unsafe-inline';
-               script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net;
-               connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.supabase.com;"
-    />
-  </head>
+  <!-- Security Policy (kept safe for Electron) -->
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="
+      default-src 'self' 'unsafe-inline' data: blob:;
+      img-src 'self' data:;
+      style-src 'self' 'unsafe-inline';
+      script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net;
+      connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.supabase.com;
+    "
+  />
+</head>
 
-  <body style="background:#0b0c10; color:white; margin:0; font-family:sans-serif;">
-    <div id="root" style="padding:20px;"></div>
+<body style="background:#0b0c10; color:white; margin:0; font-family:'Segoe UI', sans-serif; overflow:hidden;">
 
-    <!-- ✅ React + Supabase -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <!-- Top Header -->
+  <header style="
+      background:#14161c;
+      padding:15px 25px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      box-shadow:0 2px 5px rgba(0,0,0,.4);
+    ">
+    <h1 style="margin:0; font-size:1.4rem; color:#5fe280;">
+      Maharlikan Hierarchy Dashboard
+    </h1>
 
-    <!-- ✅ Main JS -->
-    <script src="./view_hierarchy.js"></script>
-  </body>
+    <button 
+      onclick="window.location.href='index.html'"
+      style="
+        background:#5fe280; 
+        border:none; 
+        color:#000;
+        padding:8px 14px; 
+        border-radius:5px; 
+        cursor:pointer;
+      ">
+      ← Home
+    </button>
+  </header>
+
+  <!-- Main Container -->
+  <div style="display:flex; height:calc(100vh - 60px); overflow:hidden;">
+
+    <!-- Left Dashboard (React will render here) -->
+    <main id="root" style="flex:1; padding:20px; overflow-y:auto;"></main>
+
+    <!-- Right Slide Panel (hidden by default) -->
+    <aside id="slidePanel" style="
+        width:380px;
+        background:#121418;
+        border-left:2px solid #5fe28033;
+        height:100%;
+        position:relative;
+        right:-400px; /* Off screen */
+        transition:all .35s ease;
+        padding:20px;
+        color:white;
+        box-sizing:border-box;
+      ">
+      
+      <h2 style="margin-top:0; color:#5fe280;">Assign Upline</h2>
+
+      <div id="panelContent" style="margin-top:15px; font-size:0.95rem;">
+        <!-- JS will inject agent details here -->
+      </div>
+
+      <button id="saveAssignmentBtn" style="
+          width:100%;
+          margin-top:25px;
+          padding:10px 0;
+          background:#5fe280;
+          color:#000;
+          border:none;
+          border-radius:6px;
+          font-size:1rem;
+          cursor:pointer;
+        ">
+        Save Assignment
+      </button>
+
+      <button onclick="closePanel()" style="
+          width:100%;
+          margin-top:10px;
+          padding:10px 0;
+          background:#2b2d33;
+          color:#fff;
+          border:none;
+          border-radius:6px;
+          cursor:pointer;
+        ">
+        Cancel
+      </button>
+    </aside>
+
+  </div>
+
+  <!-- React + Supabase -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <!-- Helper for slide panel -->
+  <script>
+    function openPanel() {
+      document.getElementById('slidePanel').style.right = '0';
+    }
+
+    function closePanel() {
+      document.getElementById('slidePanel').style.right = '-400px';
+    }
+  </script>
+
+  <!-- Main React + Supabase JS -->
+  <script src="./view_hierarchy.js"></script>
+
+</body>
 </html>

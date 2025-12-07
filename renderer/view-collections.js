@@ -1,19 +1,25 @@
-// View Collections — tailored to your schema (no joins)
+// =======================================
+// View Collections — Maharlikan (Collection-Month Accurate Version)
+// =======================================
 
-const tbody    = document.getElementById('tbody');
-const totalEl  = document.getElementById('totalCell');
+const tbody = document.getElementById('tbody');
+const totalEl = document.getElementById('totalCell');
 const periodEl = document.getElementById('periodLabel');
 const monthSel = document.getElementById('monthSel');
-const yearSel  = document.getElementById('yearSel');
+const yearSel = document.getElementById('yearSel');
 const applyBtn = document.getElementById('applyBtn');
-const exportBtn= document.getElementById('exportBtn');
+const exportBtn = document.getElementById('exportBtn');
 const printBtn = document.getElementById('printBtn');
 
-const SB = window.SB; // created in HTML before this script
+const SB = window.SB;
 
+/* ---------- Helpers ---------- */
 function showRowMessage(msg, kind = 'muted') {
-  tbody.innerHTML = `<tr><td colspan="7" class="${kind}">${msg}</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="9" class="${kind}">${msg}</td></tr>`;
 }
+
+/* ---------- Init ---------- */
+const now = new Date();
 
 init().catch(e => {
   console.error('INIT ERROR:', e);
@@ -21,29 +27,6 @@ init().catch(e => {
 });
 
 async function init() {
-  if (!SB) {
-    showRowMessage('Supabase not initialized on this page. Please check your app.js or keys.', 'empty');
-    return;
-  }
-  await ensureAuth();
-  setupMonthYearSelectors();
-  wireEvents();
-  await loadAndRender();
-}
-
-/* ---------- Auth guard ---------- */
-async function ensureAuth() {
-  const { data: { session }, error } = await SB.auth.getSession();
-  if (error) throw error;
-  if (!session) {
-    window.location.href = 'login.html';
-    throw new Error('No session. Redirecting to login.');
-  }
-}
-
-/* ---------- UI helpers ---------- */
-function setupMonthYearSelectors() {
-  const now = new Date();
   const cm = now.getMonth() + 1;
   const cy = now.getFullYear();
 
@@ -55,6 +38,7 @@ function setupMonthYearSelectors() {
     if (m === cm) opt.selected = true;
     monthSel.appendChild(opt);
   }
+
   yearSel.innerHTML = '';
   for (let y = cy - 5; y <= cy + 1; y++) {
     const opt = document.createElement('option');
@@ -63,7 +47,10 @@ function setupMonthYearSelectors() {
     if (y === cy) opt.selected = true;
     yearSel.appendChild(opt);
   }
+
   updatePeriodLabel();
+  wireEvents();
+  await loadAndRender();
 }
 
 function wireEvents() {
@@ -78,58 +65,61 @@ function updatePeriodLabel() {
   const m = parseInt(monthSel.value, 10);
   const y = parseInt(yearSel.value, 10);
   const monthName = new Date(y, m - 1, 1).toLocaleString(undefined, { month: 'long' });
-  periodEl.textContent = `Collections for ${monthName} ${y}`;
+  periodEl.textContent = `Collections Reflected for ${monthName} ${y}`;
 }
 
-/* Dates are plain DATEs in DB — format as YYYY-MM-DD */
-function getMonthRange(year, month2) {
-  const m = parseInt(month2, 10) - 1;
-  const start = new Date(year, m, 1);
-  const next  = new Date(year, m + 1, 1);
-  const fmt = d => {
-    const y = d.getFullYear();
-    const mo = String(d.getMonth()+1).padStart(2,'0');
-    const da = String(d.getDate()).padStart(2,'0');
-    return `${y}-${mo}-${da}`;
-  };
-  return { gte: fmt(start), lt: fmt(next) };
-}
-
-/* ---------- Data load & render (no joins needed) ---------- */
+/* ---------- Data Load & Render (collection_month accurate) ---------- */
 async function loadAndRender() {
   try {
+    console.log("🔄 loadAndRender() triggered");
     showRowMessage('Loading…', 'muted');
     totalEl.textContent = '0.00';
 
     const y = yearSel.value;
     const m = monthSel.value;
-    const { gte, lt } = getMonthRange(y, m);
+    const targetMonth = `${y}-${m}`; // e.g. "2025-11"
 
-    // Your actual columns:
-    // id, maf_no, last_name, first_name, address, payment (numeric), plan_type, date_paid (date)
-    const { data, error, status } = await SB
+    console.log("📅 Selected Month-Year:", targetMonth);
+
+    // Ensure SB is valid
+    if (!SB || !SB.from) {
+      console.error("❌ Supabase client not found:", SB);
+      showRowMessage('Supabase client missing.', 'empty');
+      return;
+    }
+
+    const [yNum, mNum] = targetMonth.split('-').map(Number);
+    const startDate = `${targetMonth}-01`;
+    const lastDay = new Date(yNum, mNum, 0).getDate();
+    const endDate = `${targetMonth}-${lastDay}`;
+
+    // 🔍 Query (matches collection_month OR date_paid range)
+    // Syntax: .or(cond1,cond2,and(cond3,cond4))
+    const { data, error } = await SB
       .from('collections')
-      .select('maf_no, last_name, first_name, address, plan_type, payment, date_paid')
-      .gte('date_paid', gte)
-      .lt('date_paid', lt)
+      .select('maf_no, last_name, first_name, address, plan_type, payment, or_no, payment_for, date_paid, collection_month')
+      .or(`collection_month.eq.${targetMonth},collection_month.eq.${targetMonth}-01,and(date_paid.gte.${startDate},date_paid.lte.${endDate})`)
       .order('date_paid', { ascending: false });
 
+    console.log("✅ Supabase returned:", data);
+
     if (error) {
-      console.error('Collections query error:', { error, status });
-      showRowMessage('Error loading collections. Check console for details.', 'empty');
+      console.error('❌ Query error:', error);
+      showRowMessage('Error loading collections. Check console.', 'empty');
       return;
     }
 
     if (!data || data.length === 0) {
-      showRowMessage('No collections found for the selected month and year.', 'empty');
+      console.warn(`⚠️ No collections found for ${targetMonth}.`);
+      showRowMessage(`No collections found for ${targetMonth}.`, 'empty');
       return;
     }
 
+    // 🧮 Build rows + total
     let total = 0;
     tbody.innerHTML = data.map(row => {
       const amt = Number(row.payment ?? 0);
       total += isFinite(amt) ? amt : 0;
-
       return `
         <tr>
           <td>${esc(row.maf_no ?? '')}</td>
@@ -137,18 +127,24 @@ async function loadAndRender() {
           <td>${esc(row.first_name ?? '')}</td>
           <td>${esc(row.address ?? '')}</td>
           <td>${esc(row.plan_type ?? '')}</td>
-          <td class="right">${(isFinite(amt) ? amt : 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          <td>${esc(row.or_no ?? '')}</td>
+          <td class="right">${amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          <td>${esc(row.payment_for ?? '')}</td>
           <td>${fmtDate(row.date_paid)}</td>
         </tr>
       `;
     }).join('');
 
     totalEl.textContent = total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    console.log("✅ Render complete. Total:", total);
+
   } catch (e) {
-    console.error('loadAndRender failed:', e);
-    showRowMessage('Something went wrong while loading. See console for details.', 'empty');
+    console.error('💥 loadAndRender failed:', e);
+    showRowMessage('Something went wrong. See console for details.', 'empty');
   }
 }
+
+
 
 /* ---------- Export ---------- */
 function exportToPDF() {
@@ -157,16 +153,19 @@ function exportToPDF() {
 
   const m = parseInt(monthSel.value, 10);
   const y = parseInt(yearSel.value, 10);
-  const title = `Collections for ${new Date(y, m - 1, 1).toLocaleString(undefined, { month: 'long' })} ${y}`;
+  const title = `Collections Reflected for ${new Date(y, m - 1, 1).toLocaleString(undefined, { month: 'long' })} ${y}`;
 
   doc.setFontSize(14);
   doc.text(title, 14, 18);
 
-  const head = [[ 'AF No', 'Last Name', 'First Name', 'Address', 'Plan Type', 'Amount', 'Date Collected' ]];
+  const head = [[
+    'AF No', 'Last Name', 'First Name', 'Address',
+    'Plan Type', 'OR No', 'Amount', 'Payment Type', 'Date Collected'
+  ]];
   const body = [];
   document.querySelectorAll('#tbody tr').forEach(tr => {
     const tds = Array.from(tr.querySelectorAll('td')).map(td => td.textContent || '');
-    if (tds.length === 7) body.push(tds);
+    if (tds.length >= 9) body.push(tds);
   });
 
   const total = document.getElementById('totalCell')?.textContent ?? '0.00';
@@ -177,7 +176,7 @@ function exportToPDF() {
     startY: 26,
     styles: { fontSize: 9 },
     headStyles: { fillColor: [11, 77, 135] },
-    columnStyles: { 5: { halign: 'right' } },
+    columnStyles: { 6: { halign: 'right' } },
     margin: { left: 10, right: 10 }
   });
 
@@ -202,6 +201,12 @@ function fmtDate(d) {
   try {
     const dt = new Date(d);
     if (Number.isNaN(dt.getTime())) return String(d ?? '');
-    return dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
-  } catch { return String(d ?? ''); }
+    return dt.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit'
+    });
+  } catch {
+    return String(d ?? '');
+  }
 }

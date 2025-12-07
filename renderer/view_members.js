@@ -1,49 +1,60 @@
 let supabase = null, env = null;
 
-const qs  = (s)=>document.querySelector(s);
-const qsa = (s)=>Array.from(document.querySelectorAll(s));
-const setMsg = (t)=>{ const el=qs('#m-msg'); if (el) el.textContent = t || ''; };
+const qs = (s) => document.querySelector(s);
+const qsa = (s) => Array.from(document.querySelectorAll(s));
+const setMsg = (t) => { const el = qs('#statusText'); if (el) el.textContent = t || ''; };
 
 const agentsMap = new Map();
 const beneficiariesMap = new Map();
 
 const PAGE = 1000; // pull big pages automatically until done
 
-function esc(v){ return (v==null)? '' : String(v); }
-function money(v){ if (v==null || v==='') return ''; const n=Number(v); return Number.isFinite(n)? n.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}) : String(v); }
+function esc(v) { return (v == null) ? '' : String(v); }
+function money(v) { if (v == null || v === '') return ''; const n = Number(v); return Number.isFinite(n) ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(v); }
 
-async function boot(){
-  try{
+async function boot() {
+  try {
     // env from preload or window.__ENV__
     env = null;
-    if (window.electronAPI?.getEnv) { try{ env = await window.electronAPI.getEnv(); } catch{} }
+    if (window.electronAPI?.getEnv) { try { env = await window.electronAPI.getEnv(); } catch { } }
     if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) { if (window.__ENV__) env = window.__ENV__; }
     if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) { setMsg('Missing Supabase env.'); return; }
     if (!window.supabase?.createClient) { setMsg('Supabase SDK missing.'); return; }
 
+    // 🛑 CRITICAL: Use dummy storage to prevent clearing main window's localStorage
+    const dummyStorage = {
+      getItem: () => null,
+      setItem: () => { },
+      removeItem: () => { },
+    };
+
     supabase = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        storage: dummyStorage
+      },
     });
-    const { data: { session }, error: sessErr } = await supabase.auth.getSession();
-    if (sessErr) console.warn('[getSession]', sessErr);
-    if (!session){ setMsg('Not signed in.'); return; }
+
+    console.log("[view_members] Supabase client initialized (no session required)");
 
     wire();
     await loadAgentsMap();
-    await loadAllMembers(); // EXACTLY like your PHP (loads everything)
+    await loadAllMembers();
     setMsg('');
 
-  }catch(e){
+  } catch (e) {
     console.error(e);
-    setMsg('Init failed: ' + (e.message||e));
+    setMsg('Init failed: ' + (e.message || e));
   }
 }
 
-function wire(){
-  qs('#printBtn')?.addEventListener('click', ()=>window.print());
-  qs('#refreshBtn')?.addEventListener('click', ()=>{ location.reload(); });
+function wire() {
+  qs('#printBtn')?.addEventListener('click', () => window.print());
+  qs('#refreshBtn')?.addEventListener('click', () => { location.reload(); });
 
-  qs('#toggleBeneficiariesBtn')?.addEventListener('click', ()=>{
+  qs('#toggleBeneficiariesBtn')?.addEventListener('click', () => {
     const rows = qsa('.beneficiaries-row');
     const first = rows[0];
     const show = !first || first.style.display === '' || first.style.display === 'none';
@@ -51,7 +62,7 @@ function wire(){
     qs('#toggleBeneficiariesBtn').textContent = show ? 'Hide Beneficiaries' : 'Show Beneficiaries';
   });
 
-  qs('#searchInput')?.addEventListener('keyup', ()=>{
+  qs('#searchInput')?.addEventListener('keyup', () => {
     const term = (qs('#searchInput').value || '').toLowerCase();
     const btnText = qs('#toggleBeneficiariesBtn')?.textContent || '';
     const beneVisible = btnText.includes('Hide');
@@ -75,38 +86,38 @@ function wire(){
     FLOAT_HSCROLL.sync();
   });
 
-  qs('#closeBtn')?.addEventListener('click', (e)=>{
+  qs('#closeBtn')?.addEventListener('click', (e) => {
     e.preventDefault();
     window.close();
   });
 }
 
-async function loadAgentsMap(){
+async function loadAgentsMap() {
   agentsMap.clear();
-  try{
+  try {
     const { data, error } = await supabase
       .from('agents')
       .select('id, lastname, firstname')
       .order('lastname', { ascending: true });
     if (error) throw error;
-    (data||[]).forEach(a=>{
-      const name = [a.lastname||'', a.firstname||''].filter(Boolean).join(', ');
+    (data || []).forEach(a => {
+      const name = [a.lastname || '', a.firstname || ''].filter(Boolean).join(', ');
       agentsMap.set(a.id, name || `#${a.id}`);
     });
-  }catch(e){
+  } catch (e) {
     console.warn('[agents map]', e.message);
   }
 }
 
-function agentName(agent_id){
+function agentName(agent_id) {
   if (agent_id == null) return '';
   const k = Number(agent_id);
   return agentsMap.get(k) || `#${agent_id}`;
 }
 
-async function loadAllMembers(){
+async function loadAllMembers() {
   setMsg('Loading members…');
-  const tbody = qs('#m-tbody');
+  const tbody = qs('#membersTbody');
   tbody.innerHTML = '';
 
   let from = 0, total = 0, allIds = [];
@@ -124,10 +135,10 @@ async function loadAllMembers(){
     if (!rows.length) break;
 
     // collect member ids for bene fetch
-    allIds.push(...rows.map(r=>r.id));
+    allIds.push(...rows.map(r => r.id));
 
     // render member rows now (bene rows appended after bene fetch)
-    for (const m of rows){
+    for (const m of rows) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${esc(m.maf_no)}</td>
@@ -193,8 +204,8 @@ async function loadAllMembers(){
   await loadAllBeneficiaries(allIds);
 
   // fill beneficiaries into their rows
-  const beneVisible = (qs('#toggleBeneficiariesBtn')?.textContent||'').includes('Hide');
-  qsa('.beneficiaries-row').forEach(tr=>{
+  const beneVisible = (qs('#toggleBeneficiariesBtn')?.textContent || '').includes('Hide');
+  qsa('.beneficiaries-row').forEach(tr => {
     const id = Number(tr.dataset.memberId);
     const list = beneficiariesMap.get(id) || [];
     const tbd = tr.querySelector('tbody');
@@ -227,11 +238,11 @@ async function loadAllMembers(){
    - Aligns to the .scroll-x container's left/width
    - Mirrors/controls the real horizontal scroll
 */
-const FLOAT_HSCROLL = (function(){
+const FLOAT_HSCROLL = (function () {
   let sliderWrap, slider, wrap, ro, styleEl;
   let suppress = false;
 
-  function ensureStyles(){
+  function ensureStyles() {
     if (styleEl) return;
     styleEl = document.createElement('style');
     styleEl.textContent = `
@@ -269,20 +280,20 @@ const FLOAT_HSCROLL = (function(){
     document.head.appendChild(styleEl);
   }
 
-  function findWrap(){
+  function findWrap() {
     // Your scroll container (.scroll-x)
     const viaClass = document.querySelector('.scroll-x');
     if (viaClass) return viaClass;
 
     // Fallbacks
-    const tbody = document.querySelector('#m-tbody');
-    if (tbody){
+    const tbody = document.querySelector('#membersTbody');
+    if (tbody) {
       const byClosest = tbody.closest('.scroll-x');
       if (byClosest) return byClosest;
       if (tbody.parentElement) return tbody.parentElement;
     }
     const table = document.querySelector('#membersTable');
-    if (table){
+    if (table) {
       const byClosest = table.closest('.scroll-x');
       if (byClosest) return byClosest;
       return table.parentElement;
@@ -290,7 +301,7 @@ const FLOAT_HSCROLL = (function(){
     return null;
   }
 
-  function layout(){
+  function layout() {
     if (!wrap || !sliderWrap) return;
     const rect = wrap.getBoundingClientRect();
 
@@ -305,7 +316,7 @@ const FLOAT_HSCROLL = (function(){
     const rightLimit = window.innerWidth - margin;
     const width = Math.max(260, Math.min(rect.width, rightLimit - left));
 
-    sliderWrap.style.left  = left + 'px';
+    sliderWrap.style.left = left + 'px';
     sliderWrap.style.width = width + 'px';
 
     // Update slider range to match scrollable range
@@ -318,13 +329,13 @@ const FLOAT_HSCROLL = (function(){
     }
   }
 
-  function init(){
+  function init() {
     if (!wrap) wrap = findWrap();
     if (!wrap) return;
 
     ensureStyles();
 
-    if (!sliderWrap){
+    if (!sliderWrap) {
       sliderWrap = document.createElement('div');
       sliderWrap.className = 'hs-float';
       slider = document.createElement('input');
@@ -335,7 +346,7 @@ const FLOAT_HSCROLL = (function(){
       document.body.appendChild(sliderWrap);
 
       // range -> table
-      slider.addEventListener('input', ()=>{
+      slider.addEventListener('input', () => {
         if (suppress) return;
         suppress = true;
         wrap.scrollLeft = Number(slider.value);
@@ -343,7 +354,7 @@ const FLOAT_HSCROLL = (function(){
       });
 
       // table -> range
-      wrap.addEventListener('scroll', ()=>{
+      wrap.addEventListener('scroll', () => {
         if (suppress) return;
         suppress = true;
         slider.value = String(wrap.scrollLeft);
@@ -364,19 +375,19 @@ const FLOAT_HSCROLL = (function(){
   return { init, sync: layout };
 })();
 
-async function loadAllBeneficiaries(ids){
+async function loadAllBeneficiaries(ids) {
   setMsg('Loading beneficiaries…');
   beneficiariesMap.clear();
   const pageSize = 2000; // efficient in chunks
-  for (let i=0; i<ids.length; i+=pageSize){
-    const slice = ids.slice(i, i+pageSize);
+  for (let i = 0; i < ids.length; i += pageSize) {
+    const slice = ids.slice(i, i + pageSize);
     const { data, error } = await supabase
       .from('beneficiaries')
       .select('member_id, relation, last_name, first_name, middle_name, birth_date, age, address')
       .in('member_id', slice)
       .order('last_name', { ascending: true });
     if (error) throw error;
-    (data||[]).forEach(b=>{
+    (data || []).forEach(b => {
       if (!beneficiariesMap.has(b.member_id)) beneficiariesMap.set(b.member_id, []);
       beneficiariesMap.get(b.member_id).push(b);
     });

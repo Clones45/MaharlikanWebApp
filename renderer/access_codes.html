@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Maharlikan | Access Codes</title>
+  <meta charset="UTF-8" />
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f6fa;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 14px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+    }
+
+    h1 {
+      margin-bottom: 15px;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .top-bar button {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .back-btn {
+      background: #444;
+      color: white;
+    }
+
+    .refresh-btn {
+      background: #0a5cff;
+      color: white;
+    }
+
+    .generate-box {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+
+    select,
+    button {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    /* ===== BIG CODE PANEL ===== */
+    .new-code-box {
+      margin-top: 15px;
+      padding: 15px 20px;
+      border-radius: 12px;
+      background: #0a5cff;
+      color: white;
+      box-shadow: 0 0 15px rgba(10, 92, 255, 0.6);
+      display: inline-block;
+      min-width: 260px;
+    }
+
+    .new-code-box.hidden {
+      display: none;
+    }
+
+    .big-code {
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      background: black;
+      color: #00ff99;
+      padding: 12px 15px;
+      border-radius: 10px;
+      text-align: center;
+      margin: 10px 0;
+      animation: glow 1.5s infinite;
+    }
+
+    @keyframes glow {
+      0% {
+        box-shadow: 0 0 10px #00ff99;
+      }
+
+      50% {
+        box-shadow: 0 0 20px #00ff99;
+      }
+
+      100% {
+        box-shadow: 0 0 10px #00ff99;
+      }
+    }
+
+    .expires-text {
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .copy-btn {
+      background: white;
+      color: #0a5cff;
+      border: none;
+      padding: 8px 14px;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    th {
+      background: #0a5cff;
+      color: white;
+      padding: 10px;
+    }
+
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      text-align: center;
+    }
+
+    .status-available {
+      color: green;
+      font-weight: bold;
+    }
+
+    .status-used {
+      color: red;
+      font-weight: bold;
+    }
+
+    .status-expired {
+      color: gray;
+      font-weight: bold;
+    }
+
+    .code-box {
+      background: #000;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-family: monospace;
+      display: inline-block;
+    }
+
+    .footer-note {
+      margin-top: 25px;
+      font-size: 13px;
+      color: #555;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+
+    <div class="top-bar">
+      <button class="back-btn" onclick="goHome()">← Back / Home</button>
+      <button class="refresh-btn" onclick="loadAccessCodes()">🔄 Refresh</button>
+    </div>
+
+    <h1>Access Code Generator</h1>
+
+    <div class="generate-box">
+      <select id="codePrefix">
+        <option value="MS">MS</option>
+        <option value="NSA1">NSA1</option>
+        <option value="NSA2">NSA2</option>
+        <option value="NSB1">NSB1</option>
+        <option value="NSB2">NSB2</option>
+      </select>
+
+      <button onclick="generateCode()">Generate Code</button>
+    </div>
+
+    <!-- BIG NEW CODE DISPLAY -->
+    <div id="newCodeDisplay" class="new-code-box hidden">
+      <div>✅ <b>NEW CODE CREATED</b></div>
+      <div id="bigCodeText" class="big-code">----</div>
+      <div class="expires-text" id="expireText"></div>
+      <button id="copyBtn" class="copy-btn">COPY CODE</button>
+    </div>
+
+    <hr>
+
+    <h2>Generated Codes List</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>CODE</th>
+          <th>TYPE</th>
+          <th>EXPIRES</th>
+          <th>STATUS</th>
+        </tr>
+      </thead>
+
+      <tbody id="codeTable">
+        <tr>
+          <td colspan="5">Loading codes…</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="footer-note">
+      ✅ Available = not used & not expired <br>
+      ❌ Used = already claimed <br>
+      ⏱ Expired = past cutoff date (7th-of-the-month rule)
+    </p>
+
+  </div>
+
+  <!-- SAME SUPABASE SETUP AS VIEW COLLECTION -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    window.__SB_URL = "https://agyueadcymdopgihtckc.supabase.co";
+    window.__SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFneXVlYWRjeW1kb3BnaWh0Y2tjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzA2NjYsImV4cCI6MjA3NDkwNjY2Nn0.EBYfJ9RTkeGLQptG3uWaOsFMIz9DySu3uhaOlzgeeMw";
+    // 🛑 CRITICAL: Use dummy storage to prevent clearing main window's localStorage
+    const dummyStorage = {
+      getItem: () => null,
+      setItem: () => { },
+      removeItem: () => { },
+    };
+
+    window.SB = window.SB || supabase.createClient(window.__SB_URL, window.__SB_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        storage: dummyStorage
+      }
+    });
+  </script>
+
+  <script>
+    function goHome() {
+      window.location.href = "./index.html";
+    }
+  </script>
+
+  <script src="./access_codes.js"></script>
+
+</body>
+
+</html>

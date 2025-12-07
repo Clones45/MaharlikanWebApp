@@ -1,19 +1,15 @@
-// renderer/app.js
 let supabase = null;
 let env = null;
 
-const REMEMBER_KEY = 'maharlikan.remember'; // local storage flag
-
 /* -------------------- DOM helpers -------------------- */
-const qs  = (s, r = document) => r.querySelector(s);
-const qsa = (s, r = document) => Array.from(r.querySelectorAll(s));
+const qs = (s, r = document) => r.querySelector(s);
 const show = (el) => { if (el) el.classList.remove('hidden'); };
 const hide = (el) => { if (el) el.classList.add('hidden'); };
 
 function setBusy(el, busy) {
   if (!el) return;
   el.disabled = !!busy;
-  if (busy) el.setAttribute('data-busy', '1'); 
+  if (busy) el.setAttribute('data-busy', '1');
   else el.removeAttribute('data-busy');
 }
 
@@ -44,23 +40,12 @@ function setLoginWatermark() {
   }
 }
 
-/* -------------------- Members table columns -------------------- */
-const MEMBER_COLUMNS = [
-  'id','maf_no','first_name','middle_name','last_name','birth_date','age','gender','civil_status','religion',
-  'address','contact_number','zipcode','birthplace','nationality','occupation','membership','plan_type',
-  'monthly_due','contracted_price','balance','date_joined','agent','casket_type','weight','height',
-  'created_at','updated_at'
-];
-
 /* -------------------- Navigation helper -------------------- */
-/** Try to open a renderer page via IPC. Fallback: navigate current window. */
 function openWindow(file) {
   try {
     if (window.electronAPI?.openWindow) {
-      // IPC to main process (preferred)
       window.electronAPI.openWindow(file);
     } else {
-      // Fallback to same-window navigation
       window.location.assign(`./${file}`);
     }
   } catch (e) {
@@ -72,9 +57,7 @@ function openWindow(file) {
 /* -------------------- Boot -------------------- */
 async function init() {
   try {
-    const IS_LOGIN_PAGE = !!document.querySelector('#login-section'); // detect page
-
-    // get env from preload if present, else fallback to window.__ENV__
+    // 1. Load Environment
     if (window.electronAPI?.getEnv) env = await window.electronAPI.getEnv();
     if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) env = window.__ENV__ || {};
 
@@ -82,49 +65,78 @@ async function init() {
       setMsg('#loginMsg', 'Missing Supabase environment.', '#login-section');
       return;
     }
+
     if (!window.supabase?.createClient) {
       setMsg('#loginMsg', 'Supabase client not loaded (CDN).', '#login-section');
       return;
     }
 
-    supabase = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true }
-    });
+    // 2. Initialize Supabase (SINGLE INSTANCE)
+    // ✅ ENABLE session persistence and auto-refresh to prevent JWT expiration
+    if (!supabase) {
+      supabase = window.supabase.createClient(
+        env.SUPABASE_URL,
+        env.SUPABASE_ANON_KEY,
+        {
+          auth: {
+            persistSession: true,        // ✅ ENABLE: Store session in localStorage
+            autoRefreshToken: true,      // ✅ ENABLE: Auto-refresh tokens before expiry
+            detectSessionInUrl: false,   // Not needed for main window
+            storage: window.localStorage // ✅ Use real localStorage
+          }
+        }
+      );
 
-    // If user did NOT choose "Remember me", never restore old session
-    const remember = localStorage.getItem(REMEMBER_KEY) === '1';
-    if (!remember) {
-      await supabase.auth.signOut().catch(() => {});
+      // ✅ Listen for auth state changes (token refresh, sign out, etc.)
+      supabase.auth.onAuthStateChange((event, session) => {
+        console.log('[Auth] State changed:', event, session?.user?.email);
+
+        if (event === 'SIGNED_OUT') {
+          console.log('[Auth] User signed out');
+          // Redirect to login page if not already there
+          if (!window.location.pathname.includes('login.html')) {
+            window.location.href = 'login.html';
+          }
+        }
+
+        if (event === 'TOKEN_REFRESHED') {
+          console.log('[Auth] ✅ Token auto-refreshed successfully');
+        }
+
+        if (event === 'SIGNED_IN') {
+          console.log('[Auth] User signed in:', session?.user?.email);
+        }
+      });
     }
 
-    // Try restoring session
-    const { data: { session } } = await supabase.auth.getSession();
+    console.log('✅ App initialized. Waiting for manual login.');
 
-    if (session && remember) {
-      // Already logged in
-      if (IS_LOGIN_PAGE) {
-        // If user opens login.html while already logged in → redirect to dashboard
-        window.location.href = "index.html";
+    // 3. UI Setup
+    // Always show login screen initially.
+    // If we are on login.html, show the section.
+    if (qs('#login-section')) {
+      show(qs('#login-section'));
+      setLoginWatermark();
+    }
+
+    // 4. Check for existing session (from localStorage)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      console.log('[Auth] ✅ Existing session found, user already logged in');
+      // If we're on login page but have a session, go to dashboard
+      if (window.location.pathname.includes('login.html')) {
+        window.location.href = 'index.html';
         return;
-      } else {
-        await afterLogin(session);
       }
     } else {
-      // Not logged in
-      if (IS_LOGIN_PAGE) {
-        show(qs('#login-section'));
-        setLoginWatermark();
-      } else {
-        // Trying to access index.html directly → redirect to login
-        window.location.href = "login.html";
-        return;
-      }
+      console.log('[Auth] No existing session, showing login');
     }
 
     attach();
+
   } catch (e) {
-    console.error('[init] error:', e);
-    setMsg('#loginMsg', 'Init failed: ' + (e.message || e), '#login-section');
+    console.error('[init error]', e);
+    setMsg('#loginMsg', 'Init failed: ' + e.message, '#login-section');
   }
 }
 
@@ -134,75 +146,67 @@ function attach() {
   qs('#signOutBtn')?.addEventListener('click', onSignOut);
   qs('#btnMenuLogout')?.addEventListener('click', onSignOut);
 
-  ['#email', '#password'].forEach(sel => {
-    qs(sel)?.addEventListener('keydown', (e) => { if (e.key === 'Enter') onLogin(); });
+  ['#username', '#password'].forEach(sel => {
+    qs(sel)?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') onLogin();
+    });
   });
 
-  // Centralized routes: button id -> file name
-  const routes = {
-    btnNewMember:       'add_member.html',
-    btnViewMembers:     'view_members.html',
-    btnAddCollections:  'add_collection.html',
-    btnViewCollections: 'view-collections.html',
-    btnEditMembers:     'edit-member.html',
-    btnSoa:             'soa.html',
-    btnRegisterAgent:   'register-agent.html',
-    btnViewHierarchy:   'view_hierarchy.html', // ✅ added here
-    btnViewCommissions: 'view-commissions.html',
+  // Dashboard Buttons
+  const dashboardMap = {
+    '#btnNewMember': 'add_member.html',
+    '#btnViewMembers': 'view_members.html',
+    '#btnAddCollections': 'add_collection.html',
+    '#btnViewCollections': 'view-collections.html',
+    '#btnViewCommissions': 'view-commissions.html',
+    '#btnViewHierarchy': 'view_hierarchy.html',
+    '#btnEditMembers': 'edit-member.html',
+    '#btnSoa': 'soa.html',
+    '#btnRegisterAgent': 'register-agent.html',
+    '#btnInquires': 'inquiries.html',
+    '#btnRequest': 'view-withdrawals.html',
+    '#btnGenerate': 'access_codes.html'
   };
 
-  // Single click handler for all menu buttons
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.menu-btn');
-    if (!btn || !btn.id) return;
+  Object.entries(dashboardMap).forEach(([selector, file]) => {
+    const btn = qs(selector);
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        console.log(`[Dashboard] Clicked ${selector} -> opening ${file}`);
 
-    if (btn.id === 'btnMenuLogout') {
-      onSignOut();
-      return;
-    }
+        let target = file;
+        const session = await supabase.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        const refresh = session?.data?.session?.refresh_token;
 
-    const file = routes[btn.id];
-    if (!file) return;
-
-    // Special case: View Members has in-page fallback
-    if (btn.id === 'btnViewMembers') {
-      if (window.electronAPI?.openWindow) {
-        openWindow(file);
-      } else {
-        try {
-          qsa('.view').forEach(hide);
-          show(qs('#view-members'));
-          loadMembers();
-        } catch (err) {
-          console.warn('[btnViewMembers] fallback failed:', err);
-          window.location.assign(`./${file}`);
+        if (token && refresh) {
+          target += `?access_token=${token}&refresh_token=${refresh}`;
+        } else if (token) {
+          target += `?access_token=${token}`;
         }
-      }
-      return;
+
+        openWindow(target);
+      });
     }
-
-    openWindow(file);
   });
-
-  // live filter for in-page "View Members" fallback
-  qs('#m-search')?.addEventListener('input', debounce(loadMembers, 350));
 }
 
-function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
-
-/* -------------------- Auth -------------------- */
+/* -------------------- LOGIN -------------------- */
 async function onLogin() {
+  // ✅ Anti-double-submit guard
+  if (window.__loggingIn) return;
+  window.__loggingIn = true;
+
   const btn = qs('#loginBtn');
-  const usernameInput = qs('#email');
+  const usernameInput = qs('#username');
   const passwordInput = qs('#password');
-  const rememberInput = qs('#remember');
 
   const identifier = usernameInput?.value?.trim();
-  const password   = passwordInput?.value;
-  const remember   = !!rememberInput?.checked;
+  const password = passwordInput?.value;
 
   if (!identifier || !password) {
-    setMsg('#loginMsg', 'Please enter username and password.', '#login-section');
+    setMsg('#loginMsg', 'Enter username and password.', '#login-section');
+    window.__loggingIn = false;
     return;
   }
 
@@ -210,32 +214,45 @@ async function onLogin() {
   setMsg('#loginMsg', 'Signing in...', '#login-section');
 
   try {
-    // username -> email via RPC if needed
+    // 1. Resolve Email if Username provided
     let email = identifier.includes('@') ? identifier : null;
+
     if (!email) {
       const { data: resolvedEmail, error: rpcErr } =
         await supabase.rpc('auth_email_for_username', { _username: identifier });
-      if (rpcErr) throw rpcErr;
-      if (!resolvedEmail) {
+
+      if (rpcErr || !resolvedEmail) {
         setMsg('#loginMsg', 'Invalid username.', '#login-section');
-        return;
+        return; // Stop here
       }
       email = resolvedEmail;
     }
 
-    const { data, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (authErr) {
+    // 2. Clear any existing session before new login attempt
+    await supabase.auth.signOut({ scope: 'local' });
+
+    // 3. Sign In
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
       setMsg('#loginMsg', 'Invalid username or password.', '#login-section');
+      return; // Stop here
+    }
+
+    if (!data?.session) {
+      setMsg('#loginMsg', 'Login failed (no session).', '#login-section');
       return;
     }
 
-    localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0');
+    // 4. Handle Successful Login
     await afterLogin(data.session);
+
   } catch (e) {
-    console.error('[onLogin] error:', e);
-    setMsg('#loginMsg', 'Login failed: ' + (e.message || 'Unknown error'), '#login-section');
+    console.error('[login error]', e);
+    setMsg('#loginMsg', e.message || 'Login failed.', '#login-section');
   } finally {
     setBusy(btn, false);
+    window.__loggingIn = false; // ✅ Release guard
   }
 }
 
@@ -243,97 +260,75 @@ async function onLogin() {
 async function afterLogin(session) {
   try {
     const userId = session.user.id;
+    console.log('✅ LOGGED USER:', userId);
+
+    // 1. Check Admin Role
     const { data: prof, error } = await supabase
       .from('users_profile')
       .select('role, display_name')
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (error) throw error;
-    if (!prof) throw new Error('No profile found for this account.');
-
-    if ((prof.role || '').toLowerCase() !== 'admin') {
-      await supabase.auth.signOut();
-      localStorage.removeItem(REMEMBER_KEY);
-      throw new Error('Admins only. You were signed out.');
+    if (error || !prof) {
+      throw new Error('No profile found in users_profile.');
     }
 
-    const name = prof.display_name || 'Admin';
-    const userInfo = qs('#user-info');
-    if (userInfo) userInfo.textContent = `${name} (admin)`;
+    if ((prof.role || '').toLowerCase() !== 'admin') {
+      await supabase.auth.signOut({ scope: 'local' }); // ✅ Immediate logout if not admin
+      throw new Error('Admins only.');
+    }
 
-    // If on login page, redirect to index.html
+    // 2. Update UI (Safe Access)
+    const userInfo = qs('#user-info');
+    if (userInfo) {
+      userInfo.textContent = `${prof.display_name || 'Admin'} (admin)`;
+    }
+
+    // 3. Redirect to Dashboard
+    // If we are on the login page (login-section exists), we MUST redirect to index.html
+    // to load the full dashboard environment.
     if (qs('#login-section')) {
       window.location.href = "index.html";
       return;
     }
 
+    // If we are already on index.html (dashboard exists), just show it.
     hide(qs('#login-section'));
     show(qs('#dashboard'));
+
   } catch (e) {
-    console.error('[afterLogin] error:', e);
-    setMsg('#loginMsg', e.message || 'Access denied.', '#login-section');
+    console.error('[afterLogin]', e);
+    setMsg('#loginMsg', e.message, '#login-section');
+    // Ensure we are logged out if afterLogin fails
+    await supabase.auth.signOut({ scope: 'local' });
     show(qs('#login-section'));
     hide(qs('#dashboard'));
   }
 }
 
-/* -------------------- Sign out -------------------- */
+/* -------------------- Logout -------------------- */
 async function onSignOut() {
   try {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'local' });
   } catch (e) {
-    console.warn('[signOut] error:', e);
+    console.warn('[logout]', e);
   } finally {
-    localStorage.removeItem(REMEMBER_KEY);
-    const userInfo = qs('#user-info');
-    if (userInfo) userInfo.textContent = '';
-    if (qs('#dashboard')) {
-      hide(qs('#dashboard'));
-    }
+    // ✅ Manual Logout: Always redirect to login.html or show login section
+    // This ensures a clean state for the next login.
     if (qs('#login-section')) {
       show(qs('#login-section'));
       setMsg('#loginMsg', 'Signed out.', '#login-section');
       setLoginWatermark();
+      // Clear inputs
+      if (qs('#username')) qs('#username').value = '';
+      if (qs('#password')) qs('#password').value = '';
     } else {
-      // Redirect to login page if not present
       window.location.href = "login.html";
     }
   }
 }
 
-/* -------------------- Members (in-page fallback) -------------------- */
-async function loadMembers() {
-  const thead = qs('#m-thead');
-  const tbody = qs('#m-tbody');
-  if (!thead || !tbody) return;
-
-  thead.innerHTML = '<tr>' + MEMBER_COLUMNS.map(c => `<th>${c}</th>`).join('') + '</tr>';
-  tbody.innerHTML = '';
-
-  const q = qs('#m-search')?.value?.trim();
-  let query = supabase.from('members').select(MEMBER_COLUMNS.join(','));
-  if (q) query = query.or(`maf_no.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`);
-  query = query.limit(500).order('created_at', { ascending: false });
-
-  const { data, error } = await query;
-  if (error) {
-    setMsg('#m-msg', 'Error: ' + error.message, '#view-members');
-    return;
-  }
-
-  const rows = data || [];
-  const esc = (v) => (v === null || v === undefined) ? '' : String(v);
-
-  for (const row of rows) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = MEMBER_COLUMNS.map(c => `<td>${esc(row[c])}</td>`).join('');
-    tbody.appendChild(tr);
-  }
-  setMsg('#m-msg', `${rows.length} row(s)`, '#view-members');
-}
-
-/* -------------------- DOM ready -------------------- */
+/* -------------------- DOM Ready -------------------- */
 window.addEventListener('DOMContentLoaded', () => {
   setLoginWatermark();
   init();

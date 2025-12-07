@@ -1,71 +1,238 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <title>Add Collection — Maharlikan</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
-    :root{
-      --bg:#0b0e14;--card:#171b22;--muted:#9aa7b7;--text:#e8eef7;--accent:#4a78ff;--accent-2:#2a3240;
+    :root {
+      --bg: #0b0e14;
+      --card: #171b22;
+      --muted: #9aa7b7;
+      --text: #e8eef7;
+      --accent: #4a78ff;
+      --accent-2: #2a3240;
     }
-    html,body{height:100%}
-    body{
-      margin:0; background:var(--bg) center/cover no-repeat;
-      color:var(--text); font:16px/1.45 system-ui,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
-    }
-    .page{min-height:100%; display:grid; place-items:center; padding:24px}
-    .card{
-      width:min(680px, calc(100vw - 32px));
-      background:linear-gradient(180deg, #1b2028, #141820);
-      border:1px solid #272c36; border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,.35);
-      padding:22px 22px 16px;
-      position:relative;
-    }
-    .title{margin:6px 6px 14px; text-align:center; font-weight:700; letter-spacing:.2px}
 
-    .home-btn{
-      position:absolute; top:16px; right:16px;
-      background:var(--accent); color:#fff; border:0; border-radius:8px;
-      padding:6px 12px; font-weight:600; cursor:pointer;
-      transition:filter .2s ease;
+    html,
+    body {
+      height: 100%
     }
-    .home-btn:hover{filter:brightness(0.95)}
 
-    label{display:block; font-size:13px; color:var(--muted); margin:8px 6px 6px}
-    input{
-      width:100%; box-sizing:border-box; padding:12px 12px; color:var(--text);
-      background:#0f131b; border:1px solid #2a3140; border-radius:10px; outline:none;
+    body {
+      margin: 0;
+      background: var(--bg) center/cover no-repeat;
+      color: var(--text);
+      font: 16px/1.45 system-ui, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial;
     }
-    input:focus{border-color:#6f97ff; box-shadow:0 0 0 2px #2440aa33}
-    .row.two{display:grid; grid-template-columns:1fr 1fr; gap:12px}
-    .row.three{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px}
-    .info{
-      margin:12px 6px 6px; padding:12px; min-height:52px; border:1px dashed #2c3445; border-radius:10px;
-      background:#0e1219; color:#cfd6e4; white-space:pre-line;
+
+    .page {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 24px
     }
-    .actions{display:flex; gap:10px; margin:10px 6px 6px}
-    .btn{
-      flex:1; appearance:none; border:1px solid #2c3445; background:#141a24; color:var(--text);
-      padding:12px 14px; border-radius:10px; cursor:pointer; font-weight:600;
+
+    .card {
+      width: min(720px, calc(100vw - 32px));
+      background: linear-gradient(180deg, #1b2028, #141820);
+      border: 1px solid #272c36;
+      border-radius: 16px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+      padding: 22px 22px 16px;
+      position: relative;
     }
-    .btn.primary{background:var(--accent); border-color:#4669ff; color:#eef2ff}
-    .btn.ghost{background:#0e1219}
-    .btn:disabled{opacity:.6; cursor:not-allowed}
-    .muted{color:var(--muted)}
-    .toast{
-      position:fixed; left:50%; top:24px; transform:translateX(-50%);
-      background:#1b2333; border:1px solid #2c3548; color:#eef3ff; padding:12px 16px;
-      border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,.35); opacity:0; pointer-events:none;
-      transition:opacity .24s ease, transform .24s ease; z-index:9999;
+
+    .title {
+      margin: 6px 6px 14px;
+      text-align: center;
+      font-weight: 700;
+      letter-spacing: .2px
     }
-    .toast.show{opacity:1; transform:translateX(-50%) translateY(4px)}
-    .tip{
-      background:#101521; border:1px solid #2b3242; border-radius:10px; color:#eaefff;
-      font-size:13px; padding:10px 12px; margin:0 0 12px;
+
+    .home-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: var(--accent);
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter .2s ease;
+    }
+
+    .home-btn:hover {
+      filter: brightness(0.95)
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin: 8px 6px 6px
+    }
+
+    input,
+    select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 12px;
+      color: var(--text);
+      background: #0f131b;
+      border: 1px solid #2a3140;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: #6f97ff;
+      box-shadow: 0 0 0 2px #2440aa33
+    }
+
+    .row.two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px
+    }
+
+    .row.three {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px
+    }
+
+    .info {
+      margin: 12px 6px 6px;
+      padding: 12px;
+      min-height: 52px;
+      border: 1px dashed #2c3445;
+      border-radius: 10px;
+      background: #0e1219;
+      color: #cfd6e4;
+      white-space: pre-line;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin: 10px 6px 6px
+    }
+
+    .btn {
+      flex: 1;
+      appearance: none;
+      border: 1px solid #2c3445;
+      background: #141a24;
+      color: var(--text);
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      border-color: #4669ff;
+      color: #eef2ff
+    }
+
+    .btn.ghost {
+      background: #0e1219
+    }
+
+    .btn:disabled {
+      opacity: .6;
+      cursor: not-allowed
+    }
+
+    .muted {
+      color: var(--muted)
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      top: 24px;
+      transform: translateX(-50%);
+      background: #1b2333;
+      border: 1px solid #2c3548;
+      color: #eef3ff;
+      padding: 12px 16px;
+      border-radius: 10px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, .35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .24s ease, transform .24s ease;
+      z-index: 9999;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(4px)
+    }
+
+    .tip {
+      background: #101521;
+      border: 1px solid #2b3242;
+      border-radius: 10px;
+      color: #eaefff;
+      font-size: 13px;
+      padding: 10px 12px;
+      margin: 0 0 12px;
+    }
+
+    .note {
+      margin: 6px 6px 0;
+      font-size: 12px;
+      color: #9fb2d1;
+    }
+
+    /* ---------- Checkbox row alignment fix ---------- */
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+      margin: 10px 6px 0;
+    }
+
+    .checkbox-row label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #00ce33;
+      cursor: pointer;
+    }
+
+    .installment-note {
+      margin: 4px 6px 8px;
+      font-size: 12px;
+      color: #9fb2d1;
+    }
+
+    @media (max-width: 480px) {
+      .checkbox-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
   </style>
 </head>
+
 <body>
   <div class="page">
     <div class="card">
@@ -73,9 +240,9 @@
       <h1 class="title">Add Collection</h1>
 
       <div class="tip">
-        💡 <b>Tip:</b> Enter AF No and Amount. If payment is <b>₱500</b> and membership is not yet paid,
-        system will mark member as <b>activated</b> and create all membership commissions automatically.<br>
-        Tick the checkbox if agent <b>deducts</b> their outright commission upfront.
+        💡 <b>Tip:</b> Choose <b>Payment For</b>. If you select <b>Membership Fee</b>, the Amount will auto-set:<br>
+        • <i>Deduct checked</i> → ₱350 (agent takes ₱150 outright now)<br>
+        • <i>Deduct unchecked</i> → ₱500 (₱150 added to agent’s monthly commission)
       </div>
 
       <form id="collectForm" autocomplete="off">
@@ -87,6 +254,7 @@
           <div>
             <label for="amount">Amount Paid</label>
             <input id="amount" name="amount" type="number" min="0" step="0.01" placeholder="0.00" required />
+            <div id="amountNote" class="note" style="display:none;"></div>
           </div>
           <div>
             <label for="date_paid">Date Paid</label>
@@ -94,12 +262,43 @@
           </div>
         </div>
 
-        <label style="display:flex;align-items:center;gap:8px;margin:10px 6px 6px;">
-          <input id="deduct_now" type="checkbox" /> 
-          Agent deducts outright commission now (Deduct mode)
-        </label>
+        <!-- NEW ROW: OR Number + Payment Type -->
+        <div class="row two">
+          <div>
+            <label for="or_no">OR No.</label>
+            <input id="or_no" name="or_no" type="text" placeholder="Enter OR / Receipt No." />
+          </div>
+          <div>
+            <label for="payment_for">Payment For</label>
+            <select id="payment_for" name="payment_for">
+              <option value="regular">Regular / Monthly</option>
+              <option value="membership">Membership Fee</option>
+            </select>
+          </div>
+        </div>
 
-        <div id="memberInfo" class="info muted">Enter AF No and tab/click away to load member details.</div>
+        <!-- MEMBERSHIP DEDUCT MODE -->
+        <div class="checkbox-row single">
+          <label>
+            <input id="deduct_now" type="checkbox" />
+            Agent deducts ₱150 outright commission now (Deduct mode)
+          </label>
+        </div>
+
+        <!-- NEW SECTION: COMMISSION CHECKBOXES -->
+        <div class="checkbox-row" id="commissionChecks" style="display:none;">
+          <label><input id="monthly_commission_given" type="checkbox"> Monthly / Deferred Commission</label>
+          <label><input id="travel_allowance_given" type="checkbox"> Travelling Allowance (₱30)</label>
+        </div>
+
+        <!-- INSTALLMENT INFO DISPLAY -->
+        <div id="installmentNote" class="installment-note" style="display:none;">
+          Installment Month: <span id="installmentValue">–</span>
+        </div>
+
+        <div id="memberInfo" class="info muted">
+          Enter AF No and tab/click away to load member details.
+        </div>
 
         <div class="actions">
           <button type="submit" class="btn primary">💾 Save Collection</button>
@@ -107,13 +306,50 @@
         </div>
 
         <div class="actions" style="margin-top:8px">
-          <button type="button" id="btnBack" class="btn" onclick="window.location.href='index.html'">← Back to Menu</button>
+          <button type="button" id="btnBack" class="btn" onclick="window.location.href='index.html'">
+            ← Back to Menu
+          </button>
         </div>
       </form>
     </div>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Small UI-only script to auto-set Amount for Membership vs Regular -->
+  <script>
+    (function () {
+      const paymentFor = document.getElementById('payment_for');
+      const deduct = document.getElementById('deduct_now');
+      const amount = document.getElementById('amount');
+      const amountNote = document.getElementById('amountNote');
+      const commissionChecks = document.getElementById('commissionChecks');
+
+      function updateAmountUI() {
+        const isMembership = paymentFor.value === 'membership';
+        if (isMembership) {
+          commissionChecks.style.display = 'none';
+          const val = deduct.checked ? 350 : 500;
+          amount.value = val.toFixed ? val.toFixed(2) : String(val);
+          amount.readOnly = true;
+          amountNote.style.display = 'block';
+          amountNote.textContent = deduct.checked
+            ? 'Membership (Deduct): ₱350 — agent takes ₱150 outright now.'
+            : 'Membership (No Deduct): ₱500 — ₱150 will be added to monthly commission.';
+        } else {
+          amount.readOnly = false;
+          amountNote.style.display = 'none';
+          commissionChecks.style.display = 'flex';
+        }
+      }
+
+      paymentFor.addEventListener('change', updateAmountUI);
+      deduct.addEventListener('change', updateAmountUI);
+      document.addEventListener('DOMContentLoaded', updateAmountUI);
+    })();
+  </script>
+
   <script src="./add_collection.js"></script>
 </body>
+
 </html>

@@ -1,85 +1,151 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8"/>
+
+  <meta charset="utf-8" />
   <title>Register Agent — Maharlikan AssuredLife</title>
   <link rel="stylesheet" href="./styles.css" />
 
   <style>
     /* ===== PAGE STRUCTURE ===== */
-    #reg-agent-page { padding: 24px; overflow-y: auto; max-height: 100vh; }
+    #reg-agent-page {
+      padding: 24px;
+      overflow-y: auto;
+      max-height: 100vh;
+    }
+
     #reg-agent-page .card {
       background: #fff;
       border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.12);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .12);
       max-width: 1100px;
       margin: 0 auto;
     }
-    #reg-agent-page .content { padding: 20px; }
 
-    .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-    .banner { display:flex; align-items:center; gap:12px; }
-    .banner img { width:120px; height:auto; }
-    h1 { font-size:22px; font-weight:700; color:#0b1f3a; margin:0 0 4px; }
-    .muted { color:#334155; }
+    #reg-agent-page .content {
+      padding: 20px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .banner img {
+      width: 120px;
+      height: auto;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0b1f3a;
+      margin: 0 0 4px;
+    }
+
+    .muted {
+      color: #334155;
+    }
 
     .home-btn {
-      background:#0b4d87;
-      color:#fff;
-      border:0;
-      border-radius:8px;
-      padding:8px 14px;
-      font-weight:600;
-      cursor:pointer;
-      transition:filter .2s ease;
+      background: #0b4d87;
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter .2s ease;
     }
-    .home-btn:hover { filter:brightness(0.95); }
 
-    .wrap { display:grid; gap:16px; grid-template-columns: 1fr; overflow-y:auto; }
+    .home-btn:hover {
+      filter: brightness(0.95);
+    }
+
+    .wrap {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1fr;
+      overflow-y: auto;
+    }
 
     .section {
-      border:1px solid #d0d7e2;
-      border-radius:12px;
-      background:#fff;
-      padding:14px;
-      box-shadow:0 4px 12px rgba(0,0,0,.05);
-      overflow-y:auto;
+      border: 1px solid #d0d7e2;
+      border-radius: 12px;
+      background: #fff;
+      padding: 14px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, .05);
+      overflow-y: auto;
       max-height: 420px;
     }
+
     .section h3 {
-      margin:0 0 12px;
-      font-size:16px;
-      font-weight:700;
-      color:#0b4d87;
-      border-left:4px solid #0b4d87;
-      padding-left:8px;
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #0b4d87;
+      border-left: 4px solid #0b4d87;
+      padding-left: 8px;
     }
 
-    .grid { display:grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap:10px 14px; }
-    .full { grid-column: 1 / -1; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(220px, 1fr));
+      gap: 10px 14px;
+    }
 
-    label { font-size:13px; color:#334155; display:block; margin-bottom:6px; }
-    input, select, textarea {
-      width:100%;
-      height:38px;
-      border-radius:8px;
-      border:1px solid #d0d7e2;
-      padding:0 10px;
-      font-size:14px;
-      background:#fff;
-      color:#0f172a;
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 13px;
+      color: #334155;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      height: 38px;
+      border-radius: 8px;
+      border: 1px solid #d0d7e2;
+      padding: 0 10px;
+      font-size: 14px;
+      background: #fff;
+      color: #0f172a;
       transition: all 0.2s ease;
     }
-    input:focus, textarea:focus, select:focus {
-      outline:none;
-      border-color:#0b4d87;
-      box-shadow:0 0 0 3px rgba(11,77,135,.15);
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: #0b4d87;
+      box-shadow: 0 0 0 3px rgba(11, 77, 135, .15);
     }
-    textarea { min-height:90px; padding:10px; resize:vertical; }
+
+    textarea {
+      min-height: 90px;
+      padding: 10px;
+      resize: vertical;
+    }
 
     .password-wrapper {
       position: relative;
     }
+
     .toggle-pass {
       position: absolute;
       right: 10px;
@@ -90,70 +156,130 @@
       user-select: none;
     }
 
-    .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
     .btn {
-      height:38px; padding:0 14px;
-      border-radius:8px; border:0; cursor:pointer;
-      background:#0b4d87; color:#fff; font-weight:600;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: 0;
+      cursor: pointer;
+      background: #0b4d87;
+      color: #fff;
+      font-weight: 600;
       transition: filter .2s ease;
     }
-    .btn:hover { filter:brightness(0.95); }
-    .btn.secondary { background:#28a745; }
-    .btn.tertiary { background:#ff9800; }
-    .btn.danger { background:#e53935; }
 
-    .section::-webkit-scrollbar { width:10px; }
-    .section::-webkit-scrollbar-track { background:#eef3f8; border-radius:10px; }
-    .section::-webkit-scrollbar-thumb { background:#0b4d87; border-radius:10px; }
-    .section::-webkit-scrollbar-thumb:hover { background:#0a3f70; }
+    .btn:hover {
+      filter: brightness(0.95);
+    }
 
-    .splash{
-      position:fixed; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      background:rgba(0,0,0,.15); z-index:99999;
-      opacity:0; pointer-events:none;
-      transition:opacity .25s ease;
+    .btn.secondary {
+      background: #28a745;
     }
-    .splash.show{opacity:1; pointer-events:auto;}
-    .splash-box{
-      min-width:320px; max-width:560px;
-      padding:18px 20px; border-radius:14px;
-      color:#fff; background:#28a745;
-      box-shadow:0 20px 60px rgba(0,0,0,.25);
-      transform:scale(.96); transition:transform .25s ease;
-      text-align:center;
+
+    .btn.tertiary {
+      background: #ff9800;
     }
-    .splash.show .splash-box{transform:scale(1);}
-    .splash.error .splash-box{background:#e53935;}
-    .splash h4{margin:0 0 6px;font-size:18px;}
-    .splash p{margin:0;opacity:.95;}
+
+    .btn.danger {
+      background: #e53935;
+    }
+
+    .section::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    .section::-webkit-scrollbar-track {
+      background: #eef3f8;
+      border-radius: 10px;
+    }
+
+    .section::-webkit-scrollbar-thumb {
+      background: #0b4d87;
+      border-radius: 10px;
+    }
+
+    .section::-webkit-scrollbar-thumb:hover {
+      background: #0a3f70;
+    }
+
+    .splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, .15);
+      z-index: 99999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s ease;
+    }
+
+    .splash.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .splash-box {
+      min-width: 320px;
+      max-width: 560px;
+      padding: 18px 20px;
+      border-radius: 14px;
+      color: #fff;
+      background: #28a745;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+      transform: scale(.96);
+      transition: transform .25s ease;
+      text-align: center;
+    }
+
+    .splash.show .splash-box {
+      transform: scale(1);
+    }
+
+    .splash.error .splash-box {
+      background: #e53935;
+    }
+
+    .splash h4 {
+      margin: 0 0 6px;
+      font-size: 18px;
+    }
+
+    .splash p {
+      margin: 0;
+      opacity: .95;
+    }
 
     @media (max-width:860px) {
-      .grid { grid-template-columns: 1fr; }
-      .section { max-height: none; }
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .section {
+        max-height: none;
+      }
     }
   </style>
 
-<!-- Supabase -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<!-- bcryptjs -->
-<script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+  <!-- bcryptjs -->
+  <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
 
-<!-- Initialize Supabase -->
-<script>
-  (function initSB(){
-    if (window.SB) return;
-    const url = (window.__ENV__ && window.__ENV__.SUPABASE_URL) || "https://agyueadcymdopgihtckc.supabase.co";
-    const key = (window.__ENV__ && window.__ENV__.SUPABASE_ANON_KEY) ||
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFneXVlYWRjeW1kb3BnaWh0Y2tjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzA2NjYsImV4cCI6MjA3NDkwNjY2Nn0.EBYfJ9RTkeGLQptG3uWaOsFMIz9DySu3uhaOlzgeeMw";
-    window.SB = supabase.createClient(url, key);
-    console.log("Supabase initialized");
-  })();
-</script>
+  <!-- Initialize Supabase -->
+  <!-- Supabase initialization moved to register-agent.js -->
 
-<!-- Page JS -->
-<script defer src="./register-agent.js"></script>
+  <!-- Page JS -->
+  <script defer src="./register-agent.js"></script>
 </head>
 
 <body>
@@ -279,4 +405,5 @@
     }
   </script>
 </body>
+
 </html>

@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Website Inquiries</title>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'">
+  <link rel="stylesheet" href="./styles.css" />
+    <style>
+  :root {
+    --bg: #0b0c10;
+    --card: #14161c;
+    --fg: #e6edf3;
+    --muted: #9aa4b2;
+    --border: #2c3548;
+    --accent: #0b4d87;
+  }
+
+  body {
+    font-family: system-ui, 'Segoe UI', Roboto, Arial, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+    margin: 0;
+    padding: 0;
+  }
+
+  .wrap {
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 16px;
+  }
+
+  /* ===== Toolbar ===== */
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .toolbar input,
+  .toolbar select {
+    background: #0f1220;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+
+  .btn {
+    background: #0f1220;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .btn:hover {
+    background: var(--accent);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+  .btn[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* ===== Inquiries List ===== */
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 75vh;
+    overflow-y: auto;
+  }
+
+  .row {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: background 0.25s;
+  }
+  .row:hover {
+    background: #1c2027;
+  }
+
+  /* ===== Inquiry Header ===== */
+  .inq-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .inq-header h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+  }
+
+  /* ===== Status Pill ===== */
+  .pill {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+  .pill.new {
+    background: #16a34a;
+    color: #fff;
+  }
+  .pill.in_progress {
+    background: #facc15;
+    color: #222;
+  }
+  .pill.closed {
+    background: #ef4444;
+    color: #fff;
+  }
+
+  /* ===== Inquiry Info ===== */
+  .inq-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 30px;
+    margin-bottom: 10px;
+  }
+  .inq-info p {
+    color: var(--muted);
+    font-size: 0.92rem;
+    margin: 0;
+  }
+
+  /* ===== Inquiry Message ===== */
+  .inq-message {
+    margin-top: 12px;
+  }
+  .msg-box {
+    background: #1f2937;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--fg);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+    margin-top: 4px;
+  }
+
+  /* ===== Actions Layer (separate) ===== */
+  .inq-actions {
+    margin-top: 16px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  /* ===== Empty State ===== */
+  .empty {
+    color: var(--muted);
+    text-align: center;
+    margin: 24px 0;
+  }
+</style>
+
+</head>
+<body>
+  <div class="wrap">
+    <h1>Website Inquiries</h1>
+
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Search name, email, mobile, message…" />
+      <select id="status">
+        <option value="">All statuses</option>
+        <option value="new">New</option>
+        <option value="in_progress">In progress</option>
+        <option value="closed">Closed</option>
+      </select>
+      <button id="refreshBtn" class="btn">Refresh</button>
+      <button id="exportBtn" class="btn">Export CSV</button>
+    </div>
+
+    <div id="list" class="list"></div>
+    <div id="empty" class="empty" style="display:none">No inquiries</div>
+  </div>
+
+  <script src="./supabase.js"></script>
+  <script src="./inquiries.js"></script>
+</body>
+</html>

@@ -1,12 +1,14 @@
 <!doctype html>
 <html>
+
 <head>
-  <meta charset="utf-8"/>
+
+  <meta charset="utf-8" />
+
   <title>New Member · Maharlikan Admin</title>
-  
+
   <!-- CSP must allow Supabase network + CDN scripts -->
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' 'unsafe-inline' data: blob: filesystem:;
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: filesystem:;
                  img-src 'self' data: blob: file:;
                  style-src 'self' 'unsafe-inline';
                  script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net;
@@ -23,71 +25,187 @@
       grid-template-columns: 1.2fr 1.8fr;
       gap: clamp(16px, 3vw, 32px);
       padding: clamp(16px, 3vw, 32px);
-      background: radial-gradient(1200px 600px at 60% 10%, rgba(255,255,255,.08), transparent 60%),
-                  linear-gradient(135deg, #0b4d87 0%, #5fb4e2 100%);
+      background: radial-gradient(1200px 600px at 60% 10%, rgba(255, 255, 255, .08), transparent 60%),
+        linear-gradient(135deg, #0b4d87 0%, #5fb4e2 100%);
       color: #e6edf3;
     }
+
     .brand {
-      display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
     }
-    .brand img { width: clamp(80px,12vw,140px); opacity:.9; margin-bottom: 12px; filter: drop-shadow(0 2px 10px rgba(0,0,0,.25)); }
-    .brand h1 { font-size: clamp(18px,2.2vw,28px); font-weight: 800; letter-spacing:.4px; margin: 6px 0 8px; }
-    .brand p  { font-size: clamp(12px,1.2vw,14px); opacity:.9; }
+
+    .brand img {
+      width: clamp(80px, 12vw, 140px);
+      opacity: .9;
+      margin-bottom: 12px;
+      filter: drop-shadow(0 2px 10px rgba(0, 0, 0, .25));
+    }
+
+    .brand h1 {
+      font-size: clamp(18px, 2.2vw, 28px);
+      font-weight: 800;
+      letter-spacing: .4px;
+      margin: 6px 0 8px;
+    }
+
+    .brand p {
+      font-size: clamp(12px, 1.2vw, 14px);
+      opacity: .9;
+    }
 
     .card {
       align-self: center;
-      background: rgba(13,16,24,.85);
+      background: rgba(13, 16, 24, .85);
       backdrop-filter: blur(8px);
       border: 1px solid #222530;
       border-radius: 16px;
-      box-shadow: 0 18px 50px rgba(0,0,0,.45);
-      padding: clamp(16px,2.5vw,28px);
-      max-height: calc(100vh - clamp(32px,6vw,64px));
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .45);
+      padding: clamp(16px, 2.5vw, 28px);
+      max-height: calc(100vh - clamp(32px, 6vw, 64px));
       overflow: auto;
     }
 
-    .card h2 { margin: 0 0 8px; font-size: clamp(18px,2vw,22px); }
-    .muted { color:#9aa4b2; font-size: 13px; margin-bottom: 12px; }
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: clamp(18px, 2vw, 22px);
+    }
+
+    .muted {
+      color: #9aa4b2;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
 
     .grid {
-      display:grid;
+      display: grid;
       grid-template-columns: repeat(12, 1fr);
       gap: 12px;
     }
-    .col-12 { grid-column: span 12; }
-    .col-6  { grid-column: span 6; }
-    .col-4  { grid-column: span 4; }
-    .col-3  { grid-column: span 3; }
 
-    label { font-size: 12px; color:#9aa4b2; display:block; margin-bottom:6px; }
-    input, select, textarea {
-      width:100%; padding:10px 12px; border-radius:10px; border:1px solid #2b2f3a; background:#0f1117; color:#e6edf3;
+    .col-12 {
+      grid-column: span 12;
     }
-    textarea { min-height: 72px; resize: vertical; }
 
-    .section-title { margin-top: 8px; font-weight:700; font-size: 14px; color:#e6edf3; }
-    .hr { height:1px; background:#222530; margin: 8px 0 16px; border-radius: 1px; }
+    .col-6 {
+      grid-column: span 6;
+    }
 
-    .actions { display:flex; gap:10px; flex-wrap: wrap; margin-top: 6px; }
-    .btn { background:#4f8cff; color:#fff; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
-    .btn.secondary { background:#2b2f3a; }
-    .btn.danger    { background:#dc3545; }
-    .btn:disabled  { opacity:.6; cursor: not-allowed; }
-    .help { color:#9aa4b2; font-size:12px; margin-top:4px; }
-    .error { color:#ff6b6b; font-size:12px; margin-top:4px; }
+    .col-4 {
+      grid-column: span 4;
+    }
+
+    .col-3 {
+      grid-column: span 3;
+    }
+
+    label {
+      font-size: 12px;
+      color: #9aa4b2;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #2b2f3a;
+      background: #0f1117;
+      color: #e6edf3;
+    }
+
+    textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+
+    .section-title {
+      margin-top: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #e6edf3;
+    }
+
+    .hr {
+      height: 1px;
+      background: #222530;
+      margin: 8px 0 16px;
+      border-radius: 1px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .btn {
+      background: #4f8cff;
+      color: #fff;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn.secondary {
+      background: #2b2f3a;
+    }
+
+    .btn.danger {
+      background: #dc3545;
+    }
+
+    .btn:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .help {
+      color: #9aa4b2;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .error {
+      color: #ff6b6b;
+      font-size: 12px;
+      margin-top: 4px;
+    }
 
     .bene-row {
-      border:1px dashed #2b2f3a; padding:12px; border-radius:12px; margin-bottom:10px;
-      background:#0f1117;
+      border: 1px dashed #2b2f3a;
+      padding: 12px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      background: #0f1117;
     }
 
     @media (max-width: 980px) {
-      .page { grid-template-columns: 1fr; }
-      .brand { order: 2; padding-top: 8px; }
-      .card  { order: 1; }
+      .page {
+        grid-template-columns: 1fr;
+      }
+
+      .brand {
+        order: 2;
+        padding-top: 8px;
+      }
+
+      .card {
+        order: 1;
+      }
     }
   </style>
 </head>
+
 <body>
   <div class="page">
     <!-- Brand side -->
@@ -149,7 +267,9 @@
         <div class="col-2">
           <label>Gender</label>
           <select name="gender">
-            <option value="">--</option><option>Male</option><option>Female</option>
+            <option value="">--</option>
+            <option>Male</option>
+            <option>Female</option>
           </select>
         </div>
 
@@ -159,7 +279,7 @@
         </div>
         <div class="col-6">
           <label>Contact Number</label>
-          <input name="contact_number" autocomplete="off">
+          <input name="phone_number" autocomplete="off">
         </div>
 
         <div class="col-4">
@@ -170,8 +290,13 @@
           <label>Civil Status</label>
           <select name="civil_status">
             <option value="">--</option>
-            <option>Single</option><option>Married</option><option>Widower</option>
-            <option>Widow</option><option>Separated</option><option>Divorced</option><option>Annulled</option>
+            <option>Single</option>
+            <option>Married</option>
+            <option>Widower</option>
+            <option>Widow</option>
+            <option>Separated</option>
+            <option>Divorced</option>
+            <option>Annulled</option>
           </select>
         </div>
         <div class="col-4">
@@ -192,53 +317,61 @@
           <label>Occupation</label>
           <input name="occupation">
         </div>
+
         <!-- Membership -->
-<div class="col-4">
-  <label>Membership</label>
-  <select name="membership">
-    <option value="">-- Select --</option>
-    <option>Insurable</option>
-    <option>Non-Insurable</option>
-  </select>
-  <div data-err="membership" class="error"></div>
-</div>
+        <div class="col-4">
+          <label>Membership</label>
+          <select name="membership">
+            <option value="">-- Select --</option>
+            <option>Insurable</option>
+            <option>Non-Insurable</option>
+          </select>
+          <div data-err="membership" class="error"></div>
+        </div>
 
-<!-- Plan Type (already present) -->
-<div class="col-4">
-  <label>Plan Type</label>
-  <input name="plan_type" autocomplete="off">
-  <div data-err="plan_type" class="error"></div>
-</div>
+        <!-- Plan Type -->
+        <div class="col-4">
+          <label>Plan Type</label>
+          <select id="planType" name="plan_type">
+            <option value="">-- Select --</option>
+            <option value="PACKAGE A1">PACKAGE A1</option>
+            <option value="PACKAGE A2">PACKAGE A2</option>
+            <option value="PACKAGE B1">PACKAGE B1</option>
+            <option value="PACKAGE B2">PACKAGE B2</option>
+            <option value="CARD">CARD</option>
+          </select>
+          <div data-err="plan_type" class="error"></div>
+        </div>
 
-<!-- Casket Type -->
-<div class="col-4">
-  <label> Casket Type </label>
-  <input name="casket_type">
-  <div data-err="casket_type" class="error"></div>
-</div>
+        <!-- Casket Type -->
+        <div class="col-4">
+          <label> Casket Type </label>
+          <input id="casketType" name="casket_type" readonly>
+          <div data-err="casket_type" class="error"></div>
+        </div>
 
-<!-- Contracted Price (already present) -->
-<div class="col-4">
-  <label>Contracted Price</label>
-  <input type="number" step="0.01" name="contracted_price">
-  <div data-err="contracted_price" class="error"></div>
-</div>
+        <!-- Contracted Price -->
+        <div class="col-4">
+          <label>Contracted Price</label>
+          <input id="contractedPrice" type="number" step="0.01" name="contracted_price" readonly>
+          <div data-err="contracted_price" class="error"></div>
+        </div>
 
-<!-- Monthly Due (already present) -->
-<div class="col-4">
-  <label>Monthly Due</label>
-  <input type="number" step="0.01" name="monthly_due">
-  <div data-err="monthly_due" class="error"></div>
-</div>
+        <!-- Monthly Due -->
+        <div class="col-4">
+          <label>Monthly Due</label>
+          <input id="monthlyDue" type="number" step="0.01" name="monthly_due" readonly>
+          <div data-err="monthly_due" class="error"></div>
+        </div>
 
-<!-- Agent -->
-<div class="col-4">
-  <label>Agent</label>
-  <select id="agentSelect" name="agent_id">
-  <option value="">Select Agent</option>
-  </select>
-  <div data-err="agent" class="error"></div>
-</div>
+        <!-- Agent -->
+        <div class="col-4">
+          <label>Agent</label>
+          <select id="agentSelect" name="agent_id">
+            <option value="">Select Agent</option>
+          </select>
+          <div data-err="agent" class="error"></div>
+        </div>
 
         <!-- Beneficiaries -->
         <div class="col-12 section-title">Beneficiaries</div>
@@ -260,4 +393,5 @@
   <script type="module" src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./add_member.js"></script>
 </body>
+
 </html>
