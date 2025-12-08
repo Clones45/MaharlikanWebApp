@@ -133,7 +133,7 @@ function wire() {
   }
 
   fLapsed?.addEventListener('click', () => setActive(fLapsed, 'LAPSED'));
-  fCard?.addEventListener('click', () => setActive(fCard, 'CARD'));
+  fCard?.addEventListener('click', () => setActive(fCard, 'MS'));
   fDef?.addEventListener('click', () => setActive(fDef, 'DEFERRED'));
   fNon?.addEventListener('click', () => setActive(fNon, 'NON_DEFERRED'));
   fAtRisk?.addEventListener('click', () => setActive(fAtRisk, 'AT_RISK'));
@@ -176,15 +176,15 @@ function renderTable() {
     let paid = 0;
     if (mDue > 0) paid = (cPrice - bal) / mDue;
 
-    if (filter === 'CARD') {
-      if ((m.plan_type || '').toUpperCase() !== 'CARD') return false;
+    if (filter === 'MS') {
+      if ((m.plan_type || '').toUpperCase() !== 'MS') return false;
     } else if (filter === 'DEFERRED') {
-      // Exclude CARD, include only if paid <= 12
-      if ((m.plan_type || '').toUpperCase() === 'CARD') return false;
+      // Exclude MS, include only if paid <= 12
+      if ((m.plan_type || '').toUpperCase() === 'MS') return false;
       if (paid > 12) return false;
     } else if (filter === 'NON_DEFERRED') {
-      // Exclude CARD, include only if paid >= 13
-      if ((m.plan_type || '').toUpperCase() === 'CARD') return false;
+      // Exclude MS, include only if paid >= 13
+      if ((m.plan_type || '').toUpperCase() === 'MS') return false;
       if (paid < 13) return false;
     }
     return true;

@@ -26,7 +26,7 @@ const PLAN_DATA = {
     price: 21000,
     monthly: 350,
   },
-  "CARD": {
+  "MS": {
     casket: "NO CASKET",
     price: 0,
     monthly: 0,
