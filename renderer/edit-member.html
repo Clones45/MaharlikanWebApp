@@ -2,7 +2,6 @@
 <html lang="en">
 
 <head>
-
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Edit Member — Maharlikan AssuredLife</title>
@@ -10,382 +9,9 @@
   <!-- Global desktop theme -->
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- Page-scoped styles -->
-  <style>
-    /* ===== Scoped to this page only ===== */
-    #edit-member-page {
-      padding: 24px;
-    }
-
-    #edit-member-page .card {
-      box-shadow: var(--shadow, 0 10px 30px rgba(0, 0, 0, .12));
-      border-radius: 16px;
-      background: #fff;
-    }
-
-    /* === Header === */
-    #edit-member-page .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      /* ✅ allows right-aligned home button */
-      margin-bottom: 12px;
-    }
-
-    #edit-member-page .header h1 {
-      font-size: 22px;
-      font-weight: 700;
-      color: #1e293b;
-      margin-bottom: 4px;
-    }
-
-    #edit-member-page .header p {
-      font-size: 15px;
-      color: #475569;
-    }
-
-    /* ✅ Home Button Style */
-    .home-btn {
-      background: #0b4d87;
-      color: #fff;
-      border: 0;
-      border-radius: 8px;
-      padding: 8px 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: filter .2s ease;
-    }
-
-    .home-btn:hover {
-      filter: brightness(0.95);
-    }
-
-    /* === Search Input === */
-    #searchInput {
-      background: #ffffff;
-      border: 1.8px solid #c7d3e3;
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 15px;
-      color: #0f172a;
-      width: 100%;
-      transition: all 0.2s ease;
-      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
-    }
-
-    #searchInput::placeholder {
-      color: #94a3b8;
-      font-style: italic;
-    }
-
-    #searchInput:focus {
-      outline: none;
-      border-color: #0b4d87;
-      box-shadow: 0 0 0 3px rgba(11, 77, 135, 0.15);
-    }
-
-    /* === Rest of the styling === */
-    #edit-member-page .content {
-      padding: 16px;
-    }
-
-    #edit-member-page .banner {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    #edit-member-page .banner img {
-      width: 120px;
-      height: auto;
-    }
-
-    #edit-member-page .brand {
-      font-weight: 700;
-      font-size: 20px;
-      color: #1e293b;
-    }
-
-    #edit-member-page .muted {
-      color: #6b7280;
-    }
-
-    /* Toolbar */
-    #edit-member-page .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    #edit-member-page .toolbar input[type="text"] {
-      height: 38px;
-      border-radius: 8px;
-      padding: 0 12px;
-      border: 1px solid #d0d7e2;
-      font-size: 14px;
-      min-width: 260px;
-    }
-
-    #edit-member-page .btn {
-      height: 38px;
-      padding: 0 14px;
-      border-radius: 8px;
-      border: 0;
-      cursor: pointer;
-      background: #0b4d87;
-      color: #fff;
-    }
-
-    #edit-member-page .btn:hover {
-      filter: brightness(0.95);
-    }
-
-    #edit-member-page .btn.secondary {
-      background: #28a745;
-    }
-
-    #edit-member-page .btn.tertiary {
-      background: #ff9800;
-    }
-
-    #edit-member-page .btn.danger {
-      background: #e53935;
-    }
-
-    /* Scrollable form area */
-    #edit-member-page .form-wrap {
-      margin-top: 8px;
-      border: 1px solid #d0d7e2;
-      border-radius: 10px;
-      background: #fff;
-      max-height: 64vh;
-      overflow-y: auto;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      padding: 12px;
-    }
-
-    /* Sections */
-    .section {
-      margin-bottom: 18px;
-    }
-
-    .section h3 {
-      margin: 8px 0 12px;
-      font-size: 16px;
-      font-weight: 700;
-      color: #0b4d87;
-      border-left: 4px solid #0b4d87;
-      padding-left: 8px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(220px, 1fr));
-      gap: 10px 14px;
-    }
-
-    .grid .full {
-      grid-column: 1 / -1;
-    }
-
-    label {
-      font-size: 13px;
-      color: #334155;
-      display: block;
-      margin-bottom: 6px;
-    }
-
-    input,
-    select,
-    textarea {
-      width: 100%;
-      height: 38px;
-      border-radius: 8px;
-      border: 1px solid #d0d7e2;
-      padding: 0 10px;
-      font-size: 14px;
-      box-sizing: border-box;
-      background: #fff;
-    }
-
-    textarea {
-      min-height: 80px;
-      padding: 10px;
-    }
-
-    /* Beneficiaries */
-    #beneficiaries-container {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .bene-card {
-      border: 1px solid #e5eaf1;
-      border-radius: 10px;
-      padding: 12px;
-      background: #f9fbfd;
-    }
-
-    .bene-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-
-    .bene-title {
-      font-weight: 600;
-      color: #0b4d87;
-    }
-
-    .remove-bene {
-      background: #e53935;
-      color: #fff;
-      border: 0;
-      border-radius: 8px;
-      height: 32px;
-      padding: 0 10px;
-      cursor: pointer;
-    }
-
-    .bene-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(200px, 1fr));
-      gap: 10px 12px;
-    }
-
-    .bene-grid .full {
-      grid-column: 1 / -1;
-    }
-
-    /* Totals / actions */
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .footer-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    /* Toast messages */
-    .toast {
-      position: fixed;
-      top: 24px;
-      right: 24px;
-      z-index: 9999;
-      background: #0b4d87;
-      color: #fff;
-      padding: 12px 16px;
-      border-radius: 10px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, .15);
-      opacity: 0;
-      transform: translateY(-8px);
-      transition: opacity .25s ease, transform .25s ease;
-      pointer-events: none;
-    }
-
-    .toast.show {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    .toast.success {
-      background: #28a745;
-    }
-
-    .toast.error {
-      background: #e53935;
-    }
-
-    /* Scrollbar */
-    .form-wrap::-webkit-scrollbar {
-      width: 10px;
-    }
-
-    .form-wrap::-webkit-scrollbar-track {
-      background: #eef3f8;
-      border-radius: 10px;
-    }
-
-    .form-wrap::-webkit-scrollbar-thumb {
-      background: #0b4d87;
-      border-radius: 10px;
-    }
-
-    .form-wrap::-webkit-scrollbar-thumb:hover {
-      background: #0a3f70;
-    }
-
-    /* Splash alert */
-    .splash {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, .15);
-      z-index: 99999;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .25s ease;
-    }
-
-    .splash.show {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    .splash-box {
-      min-width: 320px;
-      max-width: 560px;
-      padding: 18px 20px;
-      border-radius: 14px;
-      color: #fff;
-      background: #28a745;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
-      transform: scale(.96);
-      transition: transform .25s ease;
-    }
-
-    .splash.show .splash-box {
-      transform: scale(1);
-    }
-
-    .splash.error .splash-box {
-      background: #e53935;
-    }
-
-    .splash h4 {
-      margin: 0 0 6px;
-      font-size: 18px;
-    }
-
-    .splash p {
-      margin: 0;
-      opacity: .95
-    }
-
-    @media (max-width: 860px) {
-
-      .grid,
-      .bene-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
-
   <!-- Supabase SDK first (no defer) -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-  <!-- Initialize Supabase client (global) -->
   <!-- Initialize Supabase client (global) -->
   <script>
     const SB_URL = "https://agyueadcymdopgihtckc.supabase.co";
@@ -413,192 +39,195 @@
 </head>
 
 <body>
-  <div id="edit-member-page" class="page">
-    <div class="card">
-      <div class="content">
+  <div class="page">
 
-        <!-- Header -->
-        <div class="header">
-          <div class="banner">
-            <div>
-              <div class="brand">Edit Member</div>
-              <div class="muted">Search, update, and manage beneficiaries</div>
-            </div>
-          </div>
+    <!-- Brand Side (Left) -->
+    <aside class="brand">
+      <img src="../assets/logo-watermark.png" alt="Maharlikan">
+      <h1>Edit Member Data</h1>
+      <p>Search & Update Records</p>
 
-          <!-- ✅ Home / Back Button -->
-          <button class="home-btn" onclick="window.location.href='index.html'">🏠 Home</button>
-        </div>
-
-        <!-- Search toolbar -->
-        <div class="toolbar">
-          <input id="searchBox" type="text" placeholder="Enter MAF No, First, or Last Name" />
-          <button id="searchBtn" class="btn">Search</button>
-          <span id="searchMsg" class="muted" aria-live="polite"></span>
-        </div>
-
-        <!-- Scrollable form area -->
-        <div class="form-wrap">
-          <form id="memberForm" class="hidden" novalidate>
-            <input type="hidden" id="member_id" name="id" />
-
-            <!-- A. Member Information -->
-            <div class="section">
-              <h3>Member Information</h3>
-              <div class="grid">
-                <div>
-                  <label>MAF No</label>
-                  <input id="maf_no" name="maf_no" required />
-                </div>
-                <div>
-                  <label>Contact Number</label>
-                  <input id="phone_number" name="phone_number" />
-                </div>
-
-                <div>
-                  <label>Last Name</label>
-                  <input id="last_name" name="last_name" required />
-                </div>
-                <div>
-                  <label>First Name</label>
-                  <input id="first_name" name="first_name" required />
-                </div>
-
-                <div>
-                  <label>Middle Name</label>
-                  <input id="middle_name" name="middle_name" />
-                </div>
-                <div>
-                  <label>Religion</label>
-                  <input id="religion" name="religion" />
-                </div>
-
-                <div>
-                  <label>Birth Date</label>
-                  <input type="date" id="birth_date" name="birth_date" />
-                </div>
-                <div>
-                  <label>Birthplace</label>
-                  <input id="birthplace" name="birthplace" />
-                </div>
-
-                <div>
-                  <label>Age</label>
-                  <input type="number" id="age" name="age" min="0" />
-                </div>
-                <div>
-                  <label>Height</label>
-                  <input id="height" name="height" />
-                </div>
-
-                <div>
-                  <label>Weight</label>
-                  <input id="weight" name="weight" />
-                </div>
-                <div>
-                  <label>Gender</label>
-                  <select id="gender" name="gender">
-                    <option value="">-- Select Gender --</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label>Civil Status</label>
-                  <select id="civil_status" name="civil_status">
-                    <option value="">-- Select Civil Status --</option>
-                    <option value="Single">Single</option>
-                    <option value="Married">Married</option>
-                    <option value="Widower">Widower</option>
-                    <option value="Widow">Widow</option>
-                    <option value="Separated">Separated</option>
-                    <option value="Divorced">Divorced</option>
-                    <option value="Annulled">Annulled</option>
-                  </select>
-                </div>
-                <div>
-                  <label>Zipcode</label>
-                  <input id="zipcode" name="zipcode" />
-                </div>
-
-                <div class="full">
-                  <label>Address</label>
-                  <textarea id="address" name="address"></textarea>
-                </div>
-
-                <div>
-                  <label>Nationality</label>
-                  <input id="nationality" name="nationality" />
-                </div>
-                <div>
-                  <label>Occupation</label>
-                  <input id="occupation" name="occupation" />
-                </div>
-              </div>
-            </div>
-
-            <!-- B. Plan Information -->
-            <div class="section">
-              <h3>Plan Information</h3>
-              <div class="grid">
-                <div>
-                  <label>Membership</label>
-                  <select id="membership" name="membership">
-                    <option value="">-- Select Membership --</option>
-                    <option value="Non-Insurable">Non-Insurable</option>
-                    <option value="Insurable">Insurable</option>
-                  </select>
-                </div>
-                <div>
-                  <label>Plan Type</label>
-                  <input id="plan_type" name="plan_type" />
-                </div>
-
-                <div>
-                  <label>Casket Type</label>
-                  <input id="casket_type" name="casket_type" />
-                </div>
-                <div>
-                  <label>Contracted Price</label>
-                  <input type="number" step="0.01" id="contracted_price" name="contracted_price" />
-                </div>
-
-                <div>
-                  <label>Monthly Due</label>
-                  <input type="number" step="0.01" id="monthly_due" name="monthly_due" />
-                </div>
-                <div>
-                  <label>Agent</label>
-                  <select id="agentSelect" name="agent_id">
-                    <option value="">Select Agent</option>
-                  </select>
-                  <div data-err="agent" class="error"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- C. Beneficiaries -->
-            <div class="section">
-              <h3>Beneficiaries</h3>
-              <div id="beneficiaries-container">
-                <!-- bene-card entries are injected here by JS -->
-              </div>
-              <div class="actions">
-                <button type="button" id="addBeneficiaryBtn" class="btn tertiary">Add Beneficiary</button>
-              </div>
-            </div>
-
-            <div class="actions">
-              <button type="button" id="updateBtn" class="btn secondary">Update Member</button>
-              <button type="button" id="deleteBtn" class="btn danger">Delete Member</button>
-            </div>
-          </form>
-
-          <div id="placeholder" class="muted">Search for a member to begin editing.</div>
-        </div>
+      <!-- Navigation Buttons -->
+      <div style="margin-top: 32px; display: flex; gap: 12px;">
+        <button class="btn" onclick="window.location.href='index.html'" style="width: auto;">
+          <span class="icon">🏠</span> Home
+        </button>
       </div>
-    </div>
+    </aside>
+
+    <!-- Content Side (Right) -->
+    <main class="card">
+      <div class="header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h2>Update Information</h2>
+        <span id="searchMsg" class="muted" aria-live="polite" style="margin:0;"></span>
+      </div>
+
+      <!-- Toolbar (Search) -->
+      <div class="actions" style="margin-top:0; margin-bottom: 24px; gap: 12px; align-items: stretch;">
+        <input id="searchBox" type="text" placeholder="Enter MAF No, First, or Last Name" style="flex:1;" />
+        <button id="searchBtn" class="btn" style="width: auto; margin-top:0;">Search</button>
+      </div>
+
+      <!-- Placeholder State -->
+      <div id="placeholder"
+        style="text-align: center; padding: 40px; color: var(--text-muted); border: 2px dashed var(--glass-border); border-radius: 16px;">
+        <p>Search for a member above to begin editing.</p>
+      </div>
+
+      <!-- Form Area -->
+      <form id="memberForm" class="hidden grid" novalidate>
+        <input type="hidden" id="member_id" name="id" />
+
+        <!-- A. Member Information -->
+        <div class="col-12 section-title">Member Information</div>
+        <div class="col-12 hr"></div>
+
+        <div class="col-4">
+          <label>MAF No</label>
+          <input id="maf_no" name="maf_no" required />
+        </div>
+
+        <div class="col-4">
+          <label>Last Name</label>
+          <input id="last_name" name="last_name" required />
+        </div>
+        <div class="col-4">
+          <label>First Name</label>
+          <input id="first_name" name="first_name" required />
+        </div>
+        <div class="col-4">
+          <label>Middle Name</label>
+          <input id="middle_name" name="middle_name" />
+        </div>
+
+        <div class="col-4">
+          <label>Birth Date</label>
+          <input type="date" id="birth_date" name="birth_date" />
+        </div>
+        <div class="col-2">
+          <label>Age</label>
+          <input type="number" id="age" name="age" min="0" />
+        </div>
+        <div class="col-2">
+          <label>Gender</label>
+          <select id="gender" name="gender">
+            <option value="">--</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+        </div>
+        <div class="col-2">
+          <label>Height</label>
+          <input id="height" name="height" />
+        </div>
+        <div class="col-2">
+          <label>Weight</label>
+          <input id="weight" name="weight" />
+        </div>
+
+        <div class="col-6">
+          <label>Birthplace</label>
+          <input id="birthplace" name="birthplace" />
+        </div>
+        <div class="col-6">
+          <label>Contact Number</label>
+          <input id="phone_number" name="phone_number" />
+        </div>
+
+        <div class="col-4">
+          <label>Religion</label>
+          <input id="religion" name="religion" />
+        </div>
+        <div class="col-4">
+          <label>Civil Status</label>
+          <select id="civil_status" name="civil_status">
+            <option value="">-- Select --</option>
+            <option value="Single">Single</option>
+            <option value="Married">Married</option>
+            <option value="Widower">Widower</option>
+            <option value="Widow">Widow</option>
+            <option value="Separated">Separated</option>
+            <option value="Divorced">Divorced</option>
+            <option value="Annulled">Annulled</option>
+          </select>
+        </div>
+        <div class="col-4">
+          <label>Nationality</label>
+          <input id="nationality" name="nationality" />
+        </div>
+
+        <div class="col-12">
+          <label>Address</label>
+          <textarea id="address" name="address"></textarea>
+        </div>
+        <div class="col-6">
+          <label>Zipcode</label>
+          <input id="zipcode" name="zipcode" />
+        </div>
+        <div class="col-6">
+          <label>Occupation</label>
+          <input id="occupation" name="occupation" />
+        </div>
+
+        <!-- B. Plan Information -->
+        <div class="col-12 section-title">Plan Information</div>
+        <div class="col-12 hr"></div>
+
+        <div class="col-4">
+          <label>Membership</label>
+          <select id="membership" name="membership">
+            <option value="">-- Select --</option>
+            <option value="Non-Insurable">Non-Insurable</option>
+            <option value="Insurable">Insurable</option>
+          </select>
+        </div>
+        <div class="col-4">
+          <label>Plan Type</label>
+          <input id="plan_type" name="plan_type" />
+        </div>
+        <div class="col-4">
+          <label>Casket Type</label>
+          <input id="casket_type" name="casket_type" />
+        </div>
+
+        <div class="col-4">
+          <label>Contracted Price</label>
+          <input type="number" step="0.01" id="contracted_price" name="contracted_price" />
+        </div>
+        <div class="col-4">
+          <label>Monthly Due</label>
+          <input type="number" step="0.01" id="monthly_due" name="monthly_due" />
+        </div>
+        <div class="col-4">
+          <label>Agent</label>
+          <select id="agentSelect" name="agent_id">
+            <option value="">Select Agent</option>
+          </select>
+          <div data-err="agent" class="error"></div>
+        </div>
+
+        <!-- C. Beneficiaries -->
+        <div class="col-12 section-title">Beneficiaries</div>
+        <div class="col-12 hr"></div>
+
+        <div class="col-12" id="beneficiaries-container">
+          <!-- Injected via JS -->
+        </div>
+
+        <div class="col-12 actions" style="margin-top: 10px;">
+          <button type="button" id="addBeneficiaryBtn" class="btn secondary" style="width: auto;">+ Add
+            Beneficiary</button>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="col-12"
+          style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--glass-border); display: flex; gap: 16px;">
+          <button type="button" id="updateBtn" class="btn">Update Member</button>
+          <button type="button" id="deleteBtn" class="btn"
+            style="background: linear-gradient(145deg, #ef4444, #b91c1c);">Delete Member</button>
+        </div>
+      </form>
+    </main>
   </div>
 
   <!-- Toast -->

@@ -6,194 +6,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>View Collections — Maharlikan AssuredLife</title>
 
+  <!-- Global desktop theme -->
   <link rel="stylesheet" href="styles.css" />
-
-  <style>
-    #collections-page {
-      padding: 24px;
-      font-family: system-ui, sans-serif;
-    }
-
-    #collections-page .card {
-      box-shadow: var(--shadow, 0 10px 30px rgba(0, 0, 0, .12));
-      border-radius: 16px;
-      background: #fff;
-    }
-
-    #collections-page .header {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 14px;
-    }
-
-    #collections-page .brand {
-      font-weight: 700;
-      font-size: 20px;
-      color: #0b4d87;
-    }
-
-    #collections-page .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    #collections-page .filters {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    #collections-page select,
-    #collections-page button {
-      height: 38px;
-      border-radius: 8px;
-      padding: 0 10px;
-      border: 1px solid #d0d7e2;
-      font-size: 14px;
-    }
-
-    #collections-page .btn {
-      background: #0b4d87;
-      color: #fff;
-      border: 0;
-      cursor: pointer;
-    }
-
-    #collections-page .btn:hover {
-      filter: brightness(0.95);
-    }
-
-    #collections-page .btn.secondary {
-      background: #28a745;
-    }
-
-    #collections-page .btn.tertiary {
-      background: #ff9800;
-    }
-
-    #collections-page .content {
-      padding: 16px;
-    }
-
-    .table-wrap {
-      max-height: 520px;
-      overflow-y: auto;
-      border: 1px solid #d0d7e2;
-      border-radius: 10px;
-      background: #fff;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #fff;
-      font-size: 14px;
-    }
-
-    th,
-    td {
-      border-bottom: 1px solid #edf1f7;
-      padding: 10px 12px;
-      text-align: left;
-    }
-
-    thead th {
-      background: #0b4d87;
-      color: #fff;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      letter-spacing: .02em;
-    }
-
-    tbody td {
-      color: #1a2433;
-    }
-
-    tbody tr:nth-child(even) {
-      background: #f6f9fc;
-    }
-
-    tbody tr:hover {
-      background: #e9f2fb;
-    }
-
-    .muted {
-      color: #6b7280;
-    }
-
-    .right {
-      text-align: right;
-      color: #0b4d87;
-      font-weight: 600;
-    }
-
-    .sum {
-      font-weight: 700;
-    }
-
-    .table-wrap::-webkit-scrollbar {
-      width: 10px;
-    }
-
-    .table-wrap::-webkit-scrollbar-track {
-      background: #eef3f8;
-      border-radius: 10px;
-    }
-
-    .table-wrap::-webkit-scrollbar-thumb {
-      background: #0b4d87;
-      border-radius: 10px;
-    }
-
-    .table-wrap::-webkit-scrollbar-thumb:hover {
-      background: #0a3f70;
-    }
-
-    .footer-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .banner {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .banner img {
-      width: 120px;
-      height: auto;
-    }
-
-    @media print {
-
-      .toolbar,
-      .footer-actions,
-      a.back {
-        display: none !important;
-      }
-
-      thead th {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-
-      .table-wrap {
-        max-height: none;
-        overflow: visible;
-        box-shadow: none;
-        border: none;
-      }
-    }
-  </style>
 
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script defer
@@ -201,10 +15,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
-    // ✅ Supabase Init
+    // ✅ Supabase Init (Preserved)
     window.__SB_URL = "https://agyueadcymdopgihtckc.supabase.co";
     window.__SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFneXVlYWRjeW1kb3BnaWh0Y2tjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzA2NjYsImV4cCI6MjA3NDkwNjY2Nn0.EBYfJ9RTkeGLQptG3uWaOsFMIz9DySu3uhaOlzgeeMw";
-    // 🛑 CRITICAL: Use dummy storage to prevent clearing main window's localStorage
+
     const dummyStorage = {
       getItem: () => null,
       setItem: () => { },
@@ -225,71 +39,104 @@
 </head>
 
 <body>
-  <div id="collections-page" class="page">
-    <div class="card">
-      <div class="content">
-        <div class="header">
-          <div class="banner">
-            <img src="../assets/logo-watermark.png" alt="Maharlikan AssuredLife Logo">
-            <div>
-              <div class="brand">Monthly Collections</div>
-              <div class="muted" id="periodLabel">Loading period…</div>
+  <!-- Full Width Layout -->
+  <div class="page" style="display: flex; flex-direction: column; height: 100vh; overflow: hidden; padding: 0;">
+
+    <!-- Glass Header -->
+    <header class="app-header glass-top"
+      style="flex-shrink: 0; padding: 12px 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--glass-border); background: rgba(5, 5, 7, 0.6);">
+      <div style="display: flex; align-items: center; gap: 20px;">
+        <img src="../assets/logo-watermark.png" alt="Maharlikan"
+          style="height: 50px; width: auto; filter: drop-shadow(0 0 8px rgba(34,211,238,0.4));">
+
+        <div>
+          <h1 style="font-size: 1.25rem; margin: 0; color: #fff; letter-spacing: 0.02em;">Monthly Collections</h1>
+          <p class="muted" id="periodLabel" style="font-size: 0.85rem; margin: 0;">Loading period...</p>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <button class="menu-btn" onclick="window.location.href='index.html'"
+        style="display: flex; align-items: center; gap: 8px; padding: 10px 24px; width: auto; white-space: nowrap; height: auto;">
+        <span class="icon">🏠</span> Back to Menu
+      </button>
+    </header>
+
+    <!-- Main Card (Scrollable Content) -->
+    <main style="flex: 1; padding: 24px 32px; overflow: hidden; display: flex; flex-direction: column;">
+
+      <div class="card"
+        style="display: flex; flex-direction: column; overflow: hidden; padding: 20px; height: 100%; border-radius: 16px; width: 100%; max-width: 100%;">
+
+        <!-- Toolbar -->
+        <div class="toolbar glass"
+          style="margin-bottom: 20px; padding: 16px 24px; border-radius: 12px; flex-shrink: 0; background: rgba(255, 255, 255, 0.03);">
+          <div class="filters" style="gap: 20px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span class="muted"
+                style="font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em; font-weight: 600;">Period</span>
+              <select id="monthSel"
+                style="background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); color: #fff; border-radius: 8px; padding: 8px 12px;"></select>
+              <select id="yearSel"
+                style="background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); color: #fff; width: 90px; border-radius: 8px; padding: 8px 12px;"></select>
             </div>
+
+            <button id="applyBtn" class="btn"
+              style="padding: 0 24px; height: 42px; width: auto; display: flex; align-items: center; gap: 8px;">
+              <span>🔎</span> Load Data
+            </button>
+          </div>
+
+          <div class="actions" style="gap: 12px;">
+            <button id="exportBtn" class="btn secondary" style="font-size: 0.9rem; padding: 0 20px; height: 42px;">
+              <span>📄</span> PDF
+            </button>
+            <button id="printBtn" class="btn tertiary" style="font-size: 0.9rem; padding: 0 20px; height: 42px;">
+              <span>🖨</span> Print
+            </button>
           </div>
         </div>
 
-        <div class="toolbar">
-          <div class="filters">
-            <label for="monthSel" class="muted">Month</label>
-            <select id="monthSel"></select>
-
-            <label for="yearSel" class="muted">Year</label>
-            <select id="yearSel"></select>
-
-            <button id="applyBtn" class="btn">Show Collections</button>
-          </div>
-
-          <div class="actions">
-            <button id="exportBtn" class="btn secondary">Export to PDF</button>
-            <button id="printBtn" class="btn tertiary">Print Page</button>
-          </div>
-        </div>
-
-        <div class="table-wrap">
+        <!-- Enhanced Crystal Table -->
+        <div class="table-wrap"
+          style="flex: 1; margin-top: 0; border: 0; background: transparent; backdrop-filter: none; box-shadow: none;">
           <table id="collectionsTable">
             <thead>
               <tr>
-                <th>AF No</th>
+                <th style="width: 80px;">AF No</th>
                 <th>Last Name</th>
                 <th>First Name</th>
                 <th>Address</th>
-                <th>Plan Type</th>
-                <th>OR No.</th>
+                <th>Plan</th>
+                <th>OR #</th>
                 <th class="right">Amount</th>
-                <th>Payment Type</th>
-                <th>Date Collected</th>
+                <th>Type</th>
+                <th>Date</th>
               </tr>
             </thead>
             <tbody id="tbody">
               <tr>
-                <td colspan="9" class="muted">Loading…</td>
+                <td colspan="9" class="muted" style="text-align:center; padding: 60px;">
+                  <div style="font-size: 1.1rem; margin-bottom: 8px; color: var(--text-main);">Select a period to view
+                    collections</div>
+                  <div style="font-size: 0.9rem; opacity: 0.6;">Use the toolbar above to filter data</div>
+                </td>
               </tr>
             </tbody>
             <tfoot>
               <tr>
-                <th colspan="6" class="right">Total</th>
-                <th class="right sum" id="totalCell">0.00</th>
+                <th colspan="6" class="right"
+                  style="text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.85rem; color: var(--text-muted);">
+                  Total Collected</th>
+                <th class="right sum" id="totalCell" style="font-size: 1.25rem; color: var(--neon-accent);">0.00</th>
                 <th colspan="2"></th>
               </tr>
             </tfoot>
           </table>
         </div>
 
-        <div class="footer-actions">
-          <a href="../renderer/index.html" class="btn back">Menu</a>
-        </div>
       </div>
-    </div>
+    </main>
   </div>
 </body>
 

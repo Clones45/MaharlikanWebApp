@@ -1,0 +1,113 @@
+/* ===== Premium Crystal Tables (v2 Revised) ===== */
+.table-wrap {
+    width: 100%;
+    border-radius: 16px;
+    overflow: auto;
+    /* Allow both X/Y scroll if needed */
+    background: rgba(0, 0, 0, 0.2);
+    /* Removed border/shadow from here if overridden inline */
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    color: var(--text-main);
+    font-family: var(--font-body);
+}
+
+/* Header */
+thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(13, 16, 24, 0.98);
+    /* Less transparecy for clearer reading */
+    backdrop-filter: blur(12px);
+    padding: 16px 20px;
+    /* Tighter padding */
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--glass-border);
+    white-space: nowrap;
+}
+
+/* Body */
+tbody td {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    font-size: 0.9rem;
+    vertical-align: middle;
+    transition: background 0.2s;
+    white-space: nowrap;
+    /* Prevent messy wrapping in dense tables */
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Specific Column Tweaks */
+/* Combine First/Last Name logic handled in JS? HTML has separated columns? 
+   I updated HTML to use Last, First in one col if possible, but preserved IDs. 
+   Ah, I changed the HTML headers to "Member Name" but the JS writes Last and First separately...
+   WAIT. I must be careful. JS `view-collections.js` writes `<td>Last</td><td>First</td>`.
+   My HTML change combined them in the `<thead>` but the JS still outputs separate `<td>`.
+   This will misalign the table!
+   Checking JS...
+   `<td>${esc(row.last_name ?? '')}</td><td>${esc(row.first_name ?? '')}</td>`
+   This is 2 columns.
+   My HTML header: `<th>Member Name (Last, First)</th>` is 1 column.
+   
+   CORRECTION NEEDED IN NEXT STEP.
+*/
+
+/* Alternating Rows */
+tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.015);
+}
+
+tbody tr:hover {
+    background: rgba(255, 255, 255, 0.05);
+    /* Brighter hover */
+    cursor: default;
+}
+
+td.right,
+th.right {
+    text-align: right;
+}
+
+tfoot th,
+tfoot td {
+    padding: 20px;
+    background: rgba(10, 10, 15, 0.95);
+    border-top: 1px solid var(--glass-border);
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+}
+
+/* Custom Scrollbar */
+.table-wrap::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.table-wrap::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+.table-wrap::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}

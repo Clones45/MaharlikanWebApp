@@ -3,30 +3,319 @@
 
 <head>
   <meta charset="utf-8" />
-
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:;
-               img-src 'self' data:;
-               style-src 'self' 'unsafe-inline';
-               script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net;
-               connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.supabase.com blob:;" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' 'unsafe-inline' data: blob:; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.supabase.com blob:;" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Maharlikan Admin Login</title>
-  <link rel="stylesheet" href="./styles.css?v=5" />
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      /* Deep Void Palette */
+      --bg: #030712;
+      --bg-gradient: radial-gradient(circle at 50% 0%, #172554 0%, #030712 60%);
+      --glass: rgba(17, 24, 39, 0.7);
+      --border: rgba(255, 255, 255, 0.08);
+      --primary: #3b82f6;
+      --primary-glow: rgba(59, 130, 246, 0.4);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+      background-image: var(--bg-gradient);
+      font-family: 'Outfit', sans-serif;
+      color: var(--text-main);
+      display: grid;
+      place-items: center;
+    }
+
+    .split-layout {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Left Panel: Login Form */
+    .login-panel {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+      position: relative;
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.8s ease-out;
+    }
+
+    h2 {
+      margin: 0 0 8px 0;
+      font-size: 32px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -1px;
+    }
+
+    .sub-head {
+      margin: 0 0 32px 0;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      color: white;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.3s;
+      margin-bottom: 24px;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+
+    .remember {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      text-transform: none;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    input[type="checkbox"] {
+      accent-color: var(--primary);
+      width: 16px;
+      height: 16px;
+    }
+
+    button.primary {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 16px;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 20px var(--primary-glow);
+      transition: all 0.3s;
+    }
+
+    button.primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px var(--primary-glow);
+      filter: brightness(1.1);
+    }
+
+    button.primary:active {
+      transform: translateY(0);
+    }
+
+    #loginMsg {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 14px;
+      min-height: 20px;
+    }
+
+    #loginMsg.error {
+      color: #ef4444;
+    }
+
+    #loginMsg.success {
+      color: #10b981;
+    }
+
+    /* Right Panel: Brand */
+    .brand-panel {
+      flex: 1.2;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(3, 7, 18, 0) 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 60px;
+      border-left: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .brand-content {
+      position: relative;
+      z-index: 10;
+      animation: fadeIn 1.2s ease-out;
+    }
+
+    .brand-title {
+      font-size: 56px;
+      line-height: 1.1;
+      font-weight: 800;
+      margin: 0 0 24px 0;
+      background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -2px;
+    }
+
+    .brand-sub {
+      font-size: 20px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      max-width: 480px;
+    }
+
+    .brand-sub b {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    /* Ambient Orbs */
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.4;
+      z-index: 1;
+    }
+
+    .orb-1 {
+      width: 400px;
+      height: 400px;
+      background: #3b82f6;
+      top: -100px;
+      right: -100px;
+      opacity: 0.2;
+    }
+
+    .orb-2 {
+      width: 300px;
+      height: 300px;
+      background: #6366f1;
+      bottom: 50px;
+      left: 50px;
+      opacity: 0.15;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-30px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .split-layout {
+        flex-direction: column-reverse;
+      }
+
+      .brand-panel {
+        flex: 0.4;
+        padding: 40px;
+        align-items: center;
+        text-align: center;
+        border-left: none;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .brand-title {
+        font-size: 32px;
+      }
+
+      .brand-sub {
+        font-size: 16px;
+      }
+
+      .login-panel {
+        flex: 1;
+      }
+    }
+  </style>
 </head>
 
 <body>
   <div id="login-section" class="split-layout">
+
+    <!-- Login Form -->
     <section class="login-panel">
       <div class="login-card">
         <h2>Admin Login</h2>
+        <p class="sub-head">Sign in to manage Maharlikan AssuredLife</p>
 
         <label for="username">Username</label>
-        <input id="username" type="text" placeholder="Enter username" />
+        <input id="username" type="text" placeholder="Enter your username" autocomplete="username" />
 
         <label for="password">Password</label>
-        <input id="password" type="password" placeholder="Enter password" />
+        <input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" />
 
         <div class="row">
           <label class="remember">
@@ -35,17 +324,24 @@
         </div>
 
         <button id="loginBtn" type="button" class="primary">Sign In</button>
-        <p id="loginMsg" class="muted" aria-live="polite"></p>
+        <p id="loginMsg" aria-live="polite"></p>
       </div>
     </section>
 
+    <!-- Brand / Visuals -->
     <section class="brand-panel">
-      <h1 class="brand-title">Maharlikan AssuredLife</h1>
-      <p class="brand-sub">Layunin ng Maharlikan AssuredLife ay <b>ASSURED</b> ka!</p>
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+
+      <div class="brand-content">
+        <h1 class="brand-title">Maharlikan<br>AssuredLife</h1>
+        <p class="brand-sub">Our mission is simple: To ensure that with Maharlikan AssuredLife, <b>ASSURED ka!</b></p>
+      </div>
     </section>
+
   </div>
 
-  <script src="./app.js?v=5"></script>
+  <script src="./app.js?v=6"></script>
 </body>
 
 </html>

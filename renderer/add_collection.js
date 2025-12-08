@@ -1,15 +1,34 @@
-/* add_collection.js — membership vs regular, OR No required, amount override (350/500), commissions via Supabase triggers */
+/* add_collection.js — Cleaned & Refactored */
 
+/* ==========================================================================
+   1. UTILITIES & HELPERS
+   ========================================================================== */
 const qs = (s) => document.querySelector(s);
 const qsa = (s) => Array.from(document.querySelectorAll(s));
 
-/* ---------- Tiny UI helpers ---------- */
+/** Safe number parser */
+const num = (v) => Number(v || 0);
+
+/** Currency formatter */
+const peso = (n) => `₱${num(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Safe HTML excaping */
+const esc = (s) => (s == null ? '' : String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])));
+
+/** Get today's date in YYYY-MM-DD */
+const today = () => new Date().toISOString().slice(0, 10);
+
+/** Checkbox state helper */
+const isChecked = (selector) => !!qs(selector)?.checked;
+
+/** Toast Notification */
 const toastEl = (() => {
   const x = document.getElementById('toast') || document.createElement('div');
   if (!x.id) { x.id = 'toast'; document.body.appendChild(x); }
   x.classList.add('toast');
   return x;
 })();
+
 function toast(msg, type = 'info') {
   toastEl.textContent = msg || '';
   toastEl.style.borderColor = type === 'error' ? '#d33' : type === 'success' ? '#2d6' : '#2c3548';
@@ -17,133 +36,19 @@ function toast(msg, type = 'info') {
   clearTimeout(toast._t);
   toast._t = setTimeout(() => toastEl.classList.remove('show'), 2600);
 }
-const esc = s => (s == null ? '' : String(s).replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])));
-const currency = n => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/* ---------- App state ---------- */
+function logError(context, err) {
+  console.error(`[${context}]`, err);
+  toast(`${context} failed. Check console.`, 'error');
+}
+
+/* ==========================================================================
+   2. APP STATE & SUPABASE
+   ========================================================================== */
 let supabase = null;
 let currentMember = null;
-let planCache = {}; // store plan_commission_map results
+let planCache = {};
 
-/* ---------- Info panel helpers ---------- */
-function infoSet(html) { const el = qs('#memberInfo'); if (el) el.innerHTML = html; }
-function infoPrepend(line, ok = true) {
-  const el = qs('#memberInfo'); if (!el) return;
-  const c = ok ? '#77dd77' : '#e66';
-  el.innerHTML = `<div style="margin-bottom:6px;color:${c};font-size:12px">${esc(line)}</div>` + (el.innerHTML || '');
-}
-
-/* ---------- Calculate Installments Paid (SOA Logic) ---------- */
-/**
- * calculateInstallmentsPaid(memberId, monthlyDue)
- * Fetches all collections for the member and calculates installments paid.
- * Formula: FLOOR(total_regular_payments / monthly_due)
- * Includes: regular payments + membership payments
- * Excludes: fees or other payment types
- */
-async function calculateInstallmentsPaid(memberId, monthlyDue) {
-  if (!memberId || !monthlyDue || monthlyDue <= 0) return 0;
-
-  try {
-    const { data: collections, error } = await supabase
-      .from('collections')
-      .select('payment, payment_for')
-      .eq('member_id', memberId);
-
-    if (error) {
-      console.error('[calculateInstallmentsPaid] error:', error);
-      return 0;
-    }
-
-    let totalRegularPayments = 0;
-    for (const col of collections || []) {
-      const payFor = (col.payment_for || '').toLowerCase();
-      // Include regular and membership payments only (exclude fees)
-      if (!payFor || payFor.includes('regular') || payFor.includes('membership')) {
-        totalRegularPayments += Number(col.payment || 0);
-      }
-    }
-
-    const installmentsPaid = Math.floor(totalRegularPayments / monthlyDue);
-    return installmentsPaid;
-  } catch (e) {
-    console.error('[calculateInstallmentsPaid] exception:', e);
-    return 0;
-  }
-}
-
-/* ---------- UI Locking Logic (Installment-based) ---------- */
-/**
- * applyInstallmentLocks(member)
- * - If member is null: reset all locks (enable checkboxes).
- * - If installments >= 13:
- *    - Disable Monthly Commission checkbox (#monthly_commission_given)
- *    - Disable "Deduct Now" checkbox (#deduct_now) — membership-out-of-pocket behavior
- *    - Leave Travel Allowance checkbox (#travel_allowance_given) untouched (still usable)
- * - If installments < 13:
- *    - Enable both checkboxes normally
- */
-function applyInstallmentLocks(member) {
-  const chkMonthly = qs('#monthly_commission_given');
-  const chkPocket = qs('#deduct_now'); // Membership Out of Pocket
-
-  // Optional: you can add an info element in HTML with this id to show installments
-  const installInfo = qs('#installmentInfo');
-
-  if (!member) {
-    // Reset to enabled if no member loaded
-    if (chkMonthly) { chkMonthly.disabled = false; chkMonthly.title = ""; }
-    if (chkPocket) { chkPocket.disabled = false; chkPocket.title = ""; }
-    if (installInfo) installInfo.textContent = '';
-    return;
-  }
-
-  const monthlyDue = Number(member.monthly_due) || 0;
-  const contracted = Number(member.contracted_price) || 0;
-  const balance = Number(member.balance) || 0;
-
-  // If no monthly due (e.g. CARD / special plan), skip installment logic
-  if (monthlyDue <= 0 || contracted <= 0) {
-    if (installInfo) installInfo.textContent = '';
-    return;
-  }
-
-  // totalPaid = contracted - balance
-  const totalPaid = Math.max(0, contracted - balance);
-  const installments = Math.floor(totalPaid / monthlyDue); // whole months only
-
-  console.log(`[UI Lock] Paid: ${totalPaid}, Due: ${monthlyDue}, Installments: ${installments}`);
-
-  if (installInfo) {
-    installInfo.textContent = `Monthly installments paid: ${installments}`;
-  }
-
-  // Rule: If 13 or more installments paid, disable Monthly Comm & Out of Pocket
-  if (installments >= 13) {
-    if (chkMonthly) {
-      chkMonthly.checked = false;
-      chkMonthly.disabled = true;
-      chkMonthly.title = "Disabled: 13+ installments paid";
-    }
-    if (chkPocket) {
-      chkPocket.checked = false;
-      chkPocket.disabled = true;
-      chkPocket.title = "Disabled: 13+ installments paid";
-    }
-    // Travel allowance checkbox (#travel_allowance_given) is intentionally NOT touched here.
-  } else {
-    if (chkMonthly) {
-      chkMonthly.disabled = false;
-      chkMonthly.title = "";
-    }
-    if (chkPocket) {
-      chkPocket.disabled = false;
-      chkPocket.title = "";
-    }
-  }
-}
-
-/* ---------- Boot ---------- */
 async function boot() {
   try {
     let env = null;
@@ -153,20 +58,15 @@ async function boot() {
     if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) { if (window.__ENV__) env = window.__ENV__; }
 
     if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) {
-      infoSet(`<span style="color:#e66">Missing Supabase env (URL/KEY). Check preload/main.</span>`);
-      const today = new Date().toISOString().slice(0, 10);
+      infoSet(`<span style="color:#e66">Missing Supabase env. Check preload/main.</span>`);
       const dateBox = qs('#date_paid');
-      if (dateBox) dateBox.value = today;
+      if (dateBox) dateBox.value = today();
+      return;
     }
 
-    // 🛑 CRITICAL: Use dummy storage to prevent clearing main window's localStorage
-    const dummyStorage = {
-      getItem: () => null,
-      setItem: () => { },
-      removeItem: () => { },
-    };
+    const dummyStorage = { getItem: () => null, setItem: () => { }, removeItem: () => { } };
 
-    if (window.supabase?.createClient && env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY) {
+    if (window.supabase?.createClient) {
       supabase = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
         auth: {
           persistSession: false,
@@ -176,304 +76,399 @@ async function boot() {
         },
       });
 
-      // ✅ Listen for auth state changes (safe mode)
-      supabase.auth.onAuthStateChange((event, session) => {
+      supabase.auth.onAuthStateChange((event) => {
         if (event === 'SIGNED_OUT') {
-          console.log('[add_collection Auth] User signed out (session invalid/expired).');
-          alert('⚠️ Session expired or invalid.\n\nPlease keep this window open and sign in again on the main window to save your work.');
+          console.log('[Auth] User signed out.');
+          alert('⚠️ Session expired. Please sign in again on the main window.');
         }
       });
     }
 
-    wire();
+    wireEvents();
   } catch (e) {
-    console.error('[boot] error', e);
-    infoSet(`<span style="color:#e66">Init failed: ${esc(e.message || e)}</span>`);
-    toast('Init failed', 'error');
+    logError('boot', e);
   }
 }
 
-/* ---------- Wire UI ---------- */
-function wire() {
+/* ==========================================================================
+   3. UI LOGIC & EVENTS
+   ========================================================================== */
+function wireEvents() {
   qs('#collectForm')?.addEventListener('submit', onSave);
 
-  const maf = qs('#maf_no');
-  const amt = qs('#amount');
+  const mafInput = qs('#maf_no');
+  const amountInput = qs('#amount');
 
-  const fire = () => loadMemberForMAF();
-  ['input', 'keyup', 'blur', 'change'].forEach(ev => maf?.addEventListener(ev, fire));
-  amt?.addEventListener('focus', fire);
+  const lookupMember = () => loadMemberForMAF();
 
-  qs('#btnReset')?.addEventListener('click', () => {
-    qs('#collectForm')?.reset();
-    const dateBox = qs('#date_paid');
-    if (dateBox) dateBox.value = new Date().toISOString().slice(0, 10);
-    currentMember = null;
-    infoSet('Enter AF No and tab/click away to load member details.');
-    // Reset locks
-    applyInstallmentLocks(null);
-  });
+  // Wire member lookup
+  if (mafInput) {
+    ['input', 'keyup', 'blur', 'change'].forEach(ev => mafInput.addEventListener(ev, lookupMember));
+  }
+
+  // Wire amount focus to also trigger lookup if needed
+  if (amountInput) {
+    amountInput.addEventListener('focus', lookupMember);
+  }
+
+  qs('#btnReset')?.addEventListener('click', resetForm);
   qs('#btnBack')?.addEventListener('click', () => history.back?.());
 }
 
-/* ---------- Member lookup by MAF/AF No ---------- */
+function resetForm() {
+  qs('#collectForm')?.reset();
+  const dateBox = qs('#date_paid');
+  if (dateBox) dateBox.value = today();
+
+  applyInstallmentLocks(null);
+  currentMember = null;
+  infoSet('Enter AF No and tab/click away to load member details.');
+}
+
+function infoSet(html) {
+  const el = qs('#memberInfo');
+  if (el) el.innerHTML = html;
+}
+
+/* ==========================================================================
+   4. MEMBER LOADING & LOGIC
+   ========================================================================== */
 async function loadMemberForMAF() {
   const info = qs('#memberInfo');
-  const raw = (qs('#maf_no')?.value || '').trim();
-  currentMember = null;
+  const rawMaf = (qs('#maf_no')?.value || '').trim();
 
-  if (!raw) { info.textContent = 'Enter AF No and tab/click away to load member details.'; return; }
-  if (raw.length < 2) { return; }
+  // Reset state if empty
+  if (!rawMaf) {
+    currentMember = null;
+    info.textContent = 'Enter AF No and tab/click away to load member details.';
+    return;
+  }
+  if (rawMaf.length < 2) return;
 
-  const maf_no = raw.toUpperCase();
-  info.textContent = `Looking up AF No: ${maf_no} …`;
+  const afNumber = rawMaf.toUpperCase();
+  if (currentMember && currentMember.maf_no === afNumber) return; // Debounce if already loaded
+
+  info.textContent = `Looking up AF No: ${afNumber} …`;
 
   try {
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('members')
       .select('*')
-      .eq('maf_no', maf_no)
+      .eq('maf_no', afNumber)
       .limit(1);
 
-    if (error) {
-      info.innerHTML = `<span style="color:#e66">Load failed: ${esc(error.message)}</span>`;
-      return;
-    }
+    if (error) throw error;
+
     if (!data || !data.length) {
-      info.innerHTML = `<span style="color:#e66">Member not found for AF No: ${esc(maf_no)}</span>`;
+      info.innerHTML = `<span style="color:#e66">Member not found for AF No: ${esc(afNumber)}</span>`;
+      currentMember = null;
+      applyInstallmentLocks(null);
       return;
     }
 
     currentMember = data[0];
 
-    // Calculate installments paid using SOA logic
+    // Calculate installments
     const installmentsPaid = await calculateInstallmentsPaid(
       currentMember.id,
-      Number(currentMember.monthly_due || 0)
+      num(currentMember.monthly_due)
     );
 
-    // Show details
+    // Render Info
     info.innerHTML = [
       `<b>Name:</b> ${esc(currentMember.first_name || 'N/A')} ${esc(currentMember.last_name || '')}`,
       `<b>Plan:</b> ${esc(currentMember.plan_type || 'N/A')}`,
-      `<b>Monthly Due:</b> ${currency(currentMember.monthly_due)}`,
-      `<b>Contracted Price:</b> ${currency(currentMember.contracted_price)}`,
-      `<b>Balance:</b> ${currency(currentMember.balance)}`,
+      `<b>Monthly Due:</b> ${peso(currentMember.monthly_due)}`,
+      `<b>Contracted Price:</b> ${peso(currentMember.contracted_price)}`,
+      `<b>Balance:</b> ${peso(currentMember.balance)}`,
       `<b>Installments Paid:</b> ${installmentsPaid} months`,
       `<b>Membership Paid:</b> ${currentMember.membership_paid ? '✅ Yes' : '❌ No'}`,
       `<b>Address:</b> ${esc(currentMember.address || 'N/A')}`,
     ].join('\n');
 
-    // ✅ Apply UI locks immediately using current balance + monthly_due
-    applyInstallmentLocks(currentMember);
+    applyInstallmentLocks(currentMember, installmentsPaid);
 
   } catch (e) {
-    console.error('[loadMemberForMAF] exception', e);
-    info.innerHTML = `<span style="color:#e66">Lookup exception: ${esc(e.message || e)}</span>`;
+    console.error('[loadMember_error]', e);
+    info.innerHTML = `<span style="color:#e66">Lookup exception: ${esc(e.message)}</span>`;
   }
 }
 
-/* ---------- Plan helpers ---------- */
-async function planInfo(plan_type) {
-  const key = (plan_type || '').toUpperCase().trim();
-  if (!key) return { code: 'UNKNOWN', monthlyDue: 0, monthlyComm: 0, outrightComm: 0 };
-  if (planCache[key]) return planCache[key];
+async function calculateInstallmentsPaid(memberId, monthlyDue) {
+  if (!memberId || monthlyDue <= 0) return 0;
 
   try {
-    const { data, error } = await supabase
-      .from('plan_commission_map')
-      .select('*')
-      .eq('plan_type', key)
-      .maybeSingle();
+    const { data: cols, error } = await supabase
+      .from('collections')
+      .select('payment, payment_for')
+      .eq('member_id', memberId);
 
-    if (error || !data) {
-      console.warn('[planInfo] fallback used for', key, error);
-      // fallback
-      if (key.includes('A1') || key.includes('A2') || key.includes('A')) return { code: 'A', monthlyDue: 500, monthlyComm: 120, outrightComm: 150 };
-      if (key.includes('B1') || key.includes('B2') || key.includes('B')) return { code: 'B', monthlyDue: 350, monthlyComm: 100, outrightComm: 130 };
-      return { code: 'UNKNOWN', monthlyDue: 0, monthlyComm: 0, outrightComm: 0 };
+    if (error) throw error;
+
+    let totalRegular = 0;
+    for (const c of cols || []) {
+      const payFor = (c.payment_for || '').toLowerCase();
+      // Count regular and membership payments
+      if (!payFor || payFor.includes('regular') || payFor.includes('membership')) {
+        totalRegular += num(c.payment);
+      }
     }
 
-    const mapped = {
-      code: (data.plan_type || key).replace(/^PLAN\s+/, ''),
-      monthlyDue: Number(data.monthly_payment || 0),
-      monthlyComm: Number(data.monthly_commission || 0),
-      outrightComm: Number(data.outright_commission || 0)
-    };
-    planCache[key] = mapped;
-    return mapped;
+    return Math.floor(totalRegular / monthlyDue);
   } catch (e) {
-    console.error('[planInfo]', e);
-    return { code: 'UNKNOWN', monthlyDue: 0, monthlyComm: 0, outrightComm: 0 };
+    console.error('[calcInstallments]', e);
+    return 0;
   }
 }
 
-/* ---------- Save ---------- */
-async function onSave(e) {
-  e.preventDefault();
-  if (!currentMember) await loadMemberForMAF();
+/**
+ * applyInstallmentLocks(member, knownInstallments)
+ * Locks UI checkboxes if member has paid >= 13 installments.
+ */
+function applyInstallmentLocks(member, knownInstallments = null) {
+  const chkMonthly = qs('#monthly_commission_given');
+  const chkPocket = qs('#deduct_now');
+  const installInfo = qs('#installmentInfo');
 
-  const maf_no = (qs('#maf_no')?.value || '').trim();
-  const typedAmount = Number((qs('#amount')?.value || '').toString().replace(/[, ]/g, '')) || 0;
-  const date_paid = qs('#date_paid')?.value || new Date().toISOString().slice(0, 10);
-  const or_no = (qs('#or_no')?.value || '').trim();
-  const payment_for_val = (qs('#payment_for')?.value || '').toLowerCase();
-  const isMembership = payment_for_val.includes('membership');
-  const outrightMode = qs('#deduct_now')?.checked ? 'deduct' : 'accrue';
-
-  // Checkbox behavior (flags only — commissions are handled in Supabase triggers)
-  const monthlyChecked = !!qs('#monthly_commission_given')?.checked;
-  const travelChecked = !!qs('#travel_allowance_given')?.checked;
-
-  if (!maf_no) { toast('AF No is required.', 'error'); qs('#maf_no')?.focus(); return; }
-  if (!currentMember) { toast('Member not found.', 'error'); return; }
-  if (!or_no) { toast('OR No. is required.', 'error'); qs('#or_no')?.focus(); return; }
-
-  let amountToStore = typedAmount;
-  if (isMembership) {
-    // Membership amount is standardized: 350 (deduct) or 500 (accrue)
-    amountToStore = outrightMode === 'deduct' ? 350 : 500;
-  } else {
-    if (!Number.isFinite(typedAmount) || typedAmount <= 0) {
-      toast('Enter a valid amount.', 'error'); qs('#amount')?.focus(); return;
-    }
-  }
-
-  if (!currentMember.agent_id) {
-    toast("This member has no Agent Assigned yet. Assign it first.", "error");
+  // Reset if no member
+  if (!member) {
+    if (chkMonthly) { chkMonthly.disabled = false; chkMonthly.title = ""; }
+    if (chkPocket) { chkPocket.disabled = false; chkPocket.title = ""; }
+    if (installInfo) installInfo.textContent = '';
     return;
   }
 
+  let installments = knownInstallments;
+
+  // If not provided, re-calculate roughly from balance (fallback)
+  if (installments === null) {
+    const monthlyDue = num(member.monthly_due);
+    const contracted = num(member.contracted_price);
+    const balance = num(member.balance);
+
+    if (monthlyDue > 0 && contracted > 0) {
+      const totalPaid = Math.max(0, contracted - balance);
+      installments = Math.floor(totalPaid / monthlyDue);
+    } else {
+      installments = 0;
+    }
+  }
+
+  if (installInfo) {
+    installInfo.textContent = `Monthly installments paid: ${installments}`;
+  }
+
+  // Rule: >= 13 Installments -> Disable Monthly Comm & Out of Pocket
+  const isLocked = installments >= 13;
+
+  if (chkMonthly) {
+    chkMonthly.disabled = isLocked;
+    if (isLocked) {
+      chkMonthly.checked = false;
+      chkMonthly.title = "Disabled: 13+ installments paid";
+    } else {
+      chkMonthly.title = "";
+    }
+  }
+
+  if (chkPocket) {
+    chkPocket.disabled = isLocked;
+    if (isLocked) {
+      chkPocket.checked = false;
+      chkPocket.title = "Disabled: 13+ installments paid";
+    } else {
+      chkPocket.title = "";
+    }
+  }
+
+  // NOTE: Travel allowance is intentionally NOT locked.
+}
+
+/* ==========================================================================
+   5. ACTIONS (SAVE & RECOMPUTE)
+   ========================================================================== */
+async function onSave(e) {
+  e.preventDefault();
+  if (!currentMember) {
+    await loadMemberForMAF();
+    if (!currentMember) return;
+  }
+
+  // --- 1. Gather Inputs ---
+  const afNumber = (qs('#maf_no')?.value || '').trim();
+  const rawAmount = (qs('#amount')?.value || '').replace(/[, ]/g, '');
+  const inputAmount = num(rawAmount);
+  const datePaid = qs('#date_paid')?.value || today();
+  const orNumber = (qs('#or_no')?.value || '').trim();
+  const paymentFor = (qs('#payment_for')?.value || '').toLowerCase();
+
+  // --- 2. Determine Modes & Flags ---
+  const isMembership = paymentFor.includes('membership');
+
+  // Checkboxes
+  // Ensure strict boolean values
+  const isMonthly = isChecked('#monthly_commission_given');
+  const isTravel = isChecked('#travel_allowance_given');
+
+  // Logic: Deduct flag only applies to membership
+  const isDeduct = !!(isMembership && isChecked('#deduct_now'));
+
+  // Derived Personally Collected Status (User Logic)
+  // If ANY commission flag is checked OR it is a deducted membership, we treat as paid/personally collected.
+  const isPersonallyCollected = !!(isMonthly || isTravel || isDeduct);
+
+  const outrightMode = isDeduct ? 'deduct' : 'accrue';
+
+  // --- 3. Validate ---
+  if (!afNumber) return toast('AF No is required.', 'error');
+  if (!orNumber) {
+    qs('#or_no')?.focus();
+    return toast('OR No. is required.', 'error');
+  }
+
+  if (!currentMember.agent_id) {
+    return toast("This member has no Agent Assigned yet.", "error");
+  }
+
+  // --- 4. Determine Exact Payment Amount ---
+  let finalPayment = inputAmount;
+
+  if (isMembership) {
+    // Membership Rule: Deduct=350, Accrue=500
+    finalPayment = isDeduct ? 350 : 500;
+  } else {
+    // Regular validation
+    if (finalPayment <= 0) {
+      qs('#amount')?.focus();
+      return toast('Enter a valid amount.', 'error');
+    }
+  }
+
   try {
-    // 🟢 Insert collection only — ALL commissions handled by Supabase trigger now
-    const insertPayload = {
+    // --- 5. Construct Payload ---
+    const payload = {
       member_id: currentMember.id,
-      agent_id: currentMember.agent_id || null,
+      agent_id: currentMember.agent_id,
       maf_no: currentMember.maf_no,
-      payment: amountToStore,
-      date_paid,
-      collection_month: date_paid.substring(0, 7) + '-01',
-      last_name: currentMember.last_name || null,
-      first_name: currentMember.first_name || null,
-      middle_name: currentMember.middle_name || null,
-      address: currentMember.address || null,
-      plan_type: currentMember.plan_type || null,
-      outright_mode: outrightMode,
-      or_no,
-      is_membership_fee: isMembership,
+
+      payment: finalPayment,
+      date_paid: datePaid,
+      collection_month: datePaid.substring(0, 7) + '-01',
+
+      // Demographics Snapshot
+      last_name: currentMember.last_name,
+      first_name: currentMember.first_name,
+      middle_name: currentMember.middle_name,
+      address: currentMember.address,
+      plan_type: currentMember.plan_type,
+
+      // Meta
+      or_no: orNumber,
       payment_for: isMembership ? 'membership' : 'regular',
-      deduct_now: !!qs('#deduct_now')?.checked,
-      got_monthly_commission: monthlyChecked,
-      got_travel_allowance: travelChecked,
+      is_membership_fee: isMembership,
+      outright_mode: outrightMode,
+
+      // 🛑 CRITICAL FLAGS
+      deduct_now: isDeduct,
+      got_monthly_commission: isMonthly,
+      got_travel_allowance: isTravel,
+      personally_collected: isPersonallyCollected
     };
 
-    const { data: inserted, error: insErr } = await supabase
+    console.log('[onSave] Inserting:', payload);
+
+    const { error: insErr } = await supabase
       .from('collections')
-      .insert(insertPayload)
-      .select()
+      .insert(payload)
       .single();
+
     if (insErr) throw insErr;
 
-    // 🔹 Recompute balance from ALL collections for this member
-    const { data: pays, error: sumErr } = await supabase
-      .from('collections')
-      .select('payment, payment_for')
-      .eq('member_id', currentMember.id);
-
-    if (sumErr) {
-      console.error('[Balance Sum Error]', sumErr);
-      toast('⚠️ Collection saved, but failed to recompute balance.', 'error');
-    } else {
-      let totalPaid = 0;
-      for (const r of pays || []) {
-        const payFor = (r.payment_for || '').toLowerCase();
-        // Treat membership + regular as contributory
-        if (!payFor || payFor.includes('membership') || payFor.includes('regular')) {
-          totalPaid += Number(r.payment || 0);
-        }
-      }
-
-      // Use contracted_price if available; otherwise reconstruct from balance + paid
-      let contracted = Number(currentMember.contracted_price || 0);
-      if (!contracted || contracted <= 0) {
-        contracted = Number(currentMember.balance || 0) + totalPaid;
-      }
-
-      const newBalance = Math.max(0, contracted - totalPaid);
-      const safeBalance = Number.isFinite(newBalance) && newBalance >= 0
-        ? Number(newBalance.toFixed(2))
-        : 0;
-
-      const { error: updErr } = await supabase
-        .from('members')
-        .update({ balance: safeBalance })
-        .eq('id', currentMember.id);
-
-      if (updErr) {
-        console.error('[Balance Update Error]', updErr);
-        toast('⚠️ Collection saved, but balance update failed.', 'error');
-      } else {
-        console.log(`✅ Updated balance: ₱${safeBalance.toLocaleString()}`);
-        currentMember.balance = safeBalance;
-      }
-    }
+    // --- 6. Post-Save Actions ---
+    await recomputeMemberBalance(currentMember.id);
 
     toast('✅ Collection saved successfully.', 'success');
 
-    // 🔄 Refresh member info from DB to stay in sync
-    try {
-      const { data: updated, error: reloadErr } = await supabase
-        .from('members')
-        .select('*')
-        .eq('id', currentMember.id)
-        .single();
+    // Refresh UI with latest balance
+    await loadMemberForMAF();
 
-      if (!reloadErr && updated) {
-        currentMember = updated;
+    // Reset Form (Partial)
+    partialResetForm();
 
-        // Calculate updated installments paid
-        const installmentsPaid = await calculateInstallmentsPaid(
-          updated.id,
-          Number(updated.monthly_due || 0)
-        );
-
-        // ✅ Update info panel with fresh data INCLUDING installments paid
-        infoSet([
-          `<b>Name:</b> ${esc(updated.first_name || 'N/A')} ${esc(updated.last_name || '')}`,
-          `<b>Plan:</b> ${esc(updated.plan_type || 'N/A')}`,
-          `<b>Monthly Due:</b> ${currency(updated.monthly_due)}`,
-          `<b>Contracted Price:</b> ${currency(updated.contracted_price)}`,
-          `<b>Balance:</b> ${currency(updated.balance)}`,
-          `<b>Installments Paid:</b> ${installmentsPaid} months`,
-          `<b>Membership Paid:</b> ${updated.membership_paid ? '✅ Yes' : '❌ No'}`,
-          `<b>Address:</b> ${esc(updated.address || 'N/A')}`,
-        ].join('\n'));
-
-        // ✅ Reapply UI locks using updated balance after this collection
-        applyInstallmentLocks(currentMember);
-      }
-    } catch (e) {
-      console.error('[refresh balance]', e);
-    }
-
-    // Reset form fields only (keep the updated info panel visible)
-    const form = qs('#collectForm');
-    if (form) form.reset();
-
-    const dateBox = qs('#date_paid');
-    if (dateBox) dateBox.value = new Date().toISOString().slice(0, 10);
-
-    // 🛑 FIX: Don't overwrite the info panel here - it already shows the updated balance
-    // The info panel will naturally update when user enters a new AF No
-    // KEEP the updated member displayed after save
-    applyInstallmentLocks(currentMember);
-
-
-  } catch (e) {
-    console.error('[onSave] error', e);
-    toast(e?.message || 'Request failed.', 'error');
+  } catch (err) {
+    logError('onSave', err);
   }
 }
 
-/* ---------- Start ---------- */
+function partialResetForm() {
+  const form = qs('#collectForm');
+  if (!form) return;
+
+  qs('#amount').value = '';
+  qs('#or_no').value = '';
+  qs('#or_no').focus();
+
+  // Reset date to today
+  const dateBox = qs('#date_paid');
+  if (dateBox) dateBox.value = today();
+
+  // Reset flags
+  if (qs('#monthly_commission_given')) qs('#monthly_commission_given').checked = false;
+  if (qs('#travel_allowance_given')) qs('#travel_allowance_given').checked = false;
+  if (qs('#deduct_now')) qs('#deduct_now').checked = false;
+}
+
+/**
+ * Recomputes member balance based on all collections.
+ */
+async function recomputeMemberBalance(memberId) {
+  try {
+    const { data: allCollections, error: colErr } = await supabase
+      .from('collections')
+      .select('payment, payment_for')
+      .eq('member_id', memberId);
+
+    if (colErr) throw colErr;
+
+    let totalPaid = 0;
+    for (const c of allCollections || []) {
+      const payFor = (c.payment_for || '').toLowerCase();
+      // Only Regular and Membership count towards balance
+      if (!payFor || payFor.includes('membership') || payFor.includes('regular')) {
+        totalPaid += num(c.payment);
+      }
+    }
+
+    // Get fresh member data for contracted price
+    const { data: mem, error: memErr } = await supabase
+      .from('members')
+      .select('contracted_price, balance')
+      .eq('id', memberId)
+      .single();
+
+    if (memErr) throw memErr;
+
+    const contracted = num(mem.contracted_price);
+    // Fallback if contracted is missing (legacy)
+    const basePrice = contracted > 0 ? contracted : (num(mem.balance) + totalPaid);
+
+    const newBalance = Math.max(0, basePrice - totalPaid);
+    const safeBalance = Number(newBalance.toFixed(2));
+
+    const { error: updErr } = await supabase
+      .from('members')
+      .update({ balance: safeBalance })
+      .eq('id', memberId);
+
+    if (updErr) console.error('[Balance Update Failed]', updErr);
+    else console.log(`Balance updated to ${peso(safeBalance)}`);
+
+  } catch (err) {
+    console.warn('[recomputeMemberBalance] failed:', err);
+  }
+}
+
+/* ==========================================================================
+   6. BOOT
+   ========================================================================== */
 window.addEventListener('DOMContentLoaded', boot);
