@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent Incentives & Taxes — Maharlikan</title>
+
+    <!-- Supabase SDK -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <!-- jsPDF + autotable -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+        :root {
+            /* Deep Void Palette */
+            --bg: #030712;
+            --bg-gradient: radial-gradient(circle at 50% 0%, #172554 0%, #030712 60%);
+
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --card-border: rgba(255, 255, 255, 0.08);
+
+            /* Accents */
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.4);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #a855f7;
+
+            /* Text */
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+
+            --glass: blur(12px);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--bg);
+            background-image: var(--bg-gradient);
+            font-family: 'Outfit', sans-serif;
+            color: var(--text-main);
+            display: grid;
+            place-items: center;
+            padding: 20px;
+        }
+
+        /* Glass Card */
+        .card {
+            width: 100%;
+            max-width: 1400px;
+            min-height: 800px;
+            background: var(--card-bg);
+            backdrop-filter: var(--glass);
+            -webkit-backdrop-filter: var(--glass);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            animation: fadeIn 0.6s ease-out;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+            margin: 0;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 400;
+            margin-top: 4px;
+        }
+
+        .home-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .home-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            transform: translateY(-1px);
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid var(--card-border);
+            margin-bottom: 24px;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        select,
+        button {
+            font-family: inherit;
+            border-radius: 10px;
+            border: 1px solid var(--card-border);
+            background: rgba(17, 24, 39, 0.6);
+            color: var(--text-main);
+            padding: 10px 14px;
+            font-size: 14px;
+            transition: all 0.2s;
+            outline: none;
+            cursor: pointer;
+        }
+
+        select:hover,
+        button:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        button.primary {
+            background: var(--primary);
+            border-color: transparent;
+            font-weight: 600;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        button.primary:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px var(--primary-glow);
+        }
+
+        .period-display {
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .period-label {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .period-value {
+            font-weight: 600;
+            color: var(--text-main);
+            font-size: 15px;
+        }
+
+        /* Summary Cards */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--card-border);
+            padding: 20px;
+            border-radius: 16px;
+        }
+
+        .summary-title {
+            color: var(--text-muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .summary-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .summary-value.green {
+            color: var(--success);
+        }
+
+        .summary-value.orange {
+            color: var(--warning);
+        }
+
+        .summary-value.purple {
+            color: var(--purple);
+        }
+
+        /* Tables Grid */
+        .tables-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            flex: 1;
+            min-height: 0;
+            /* Allow scrolling inside */
+        }
+
+        .table-section {
+            display: flex;
+            flex-direction: column;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 16px;
+            border: 1px solid var(--card-border);
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--card-border);
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-container {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            backdrop-filter: blur(4px);
+        }
+
+        th.right {
+            text-align: right;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--card-border);
+            font-size: 13px;
+            color: var(--text-main);
+        }
+
+        td.right {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+            padding: 12px 20px;
+            color: #fff;
+            transition: transform 0.3s ease-out;
+            z-index: 9999;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <div class="header-row">
+            <div>
+                <h1 class="title">Agent Incentives & Taxes</h1>
+                <div class="subtitle">Detailed breakdown of non-regular commissions and collected taxes</div>
+            </div>
+            <button class="home-btn" onclick="window.location.href='index.html'">🏠 Home</button>
+        </div>
+
+        <!-- Filters -->
+        <div class="toolbar">
+            <label>Month
+                <select id="monthSel"></select>
+            </label>
+            <label>Year
+                <select id="yearSel"></select>
+            </label>
+            <label>Agent Filter
+                <select id="agentSel" style="min-width: 200px;">
+                    <option value="all">All Agents</option>
+                </select>
+            </label>
+            <button id="applyBtn" class="primary">Load Data</button>
+            <button id="printBtn">Print / PDF</button>
+            <div id="periodDisplay" class="period-display">
+                <div class="period-label">Selected Period</div>
+                <div class="period-value" id="periodLabel">-</div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-title">Grand Total Commission</div>
+                <div class="summary-value green" id="sumIncentives">₱0.00</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">All Commissions</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Total Tax Collected</div>
+                <div class="summary-value orange" id="sumTax">₱0.00</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">10% Withholding Tax</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Processing Fees</div>
+                <div class="summary-value purple" id="sumFees">₱0.00</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">Admin / Transaction Fees</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Rice Incentives</div>
+                <div class="summary-value" style="color:#f472b6" id="sumRice">0 kg</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">1 Membership (MS) = 1 Kilo</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Office Allocated (Exp)</div>
+                <div class="summary-value" style="color:#60a5fa" id="sumOffice">₱0.00</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">First Monthly Payment (NS)</div>
+            </div>
+        </div>
+
+        <!-- Commission Breakdown Summary (New) -->
+        <div
+            style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; background:var(--card-bg); padding:20px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:20px;">
+            <!-- Category Breakdown -->
+            <div>
+                <h4
+                    style="color:var(--text-muted); font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:5px">
+                    Breakdown</h4>
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+                    <span>Outright</span>
+                    <span id="bdOutright">₱0.00</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+                    <span>Monthly</span>
+                    <span id="bdMonthly">₱0.00</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+                    <span>Overrides</span>
+                    <span id="bdOverrides">₱0.00</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+                    <span>Travel</span>
+                    <span id="bdTravel">₱0.00</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+                    <span>RLC</span>
+                    <span id="bdRecruiter">₱0.00</span>
+                </div>
+                <div
+                    style="display:flex; justify-content:space-between; font-weight:600; color:var(--primary-color); border-top:1px solid var(--border-color); padding-top:8px; margin-top:5px">
+                    <span>Total Earned</span>
+                    <span id="bdTotal">₱0.00</span>
+                </div>
+            </div>
+
+            <!-- Classification Breakdown -->
+            <div>
+                <h4
+                    style="color:var(--text-muted); font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:5px">
+                    Classification</h4>
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+                    <span>Receivable (Unpaid + Overrides)</span>
+                    <span style="color:#4ade80" id="clReceivable">₱0.00</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
+                    <span>Non-Receivable (Paid)</span>
+                    <span style="color:#94a3b8" id="clNonReceivable">₱0.00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tables -->
+        <div class="tables-grid">
+            <!-- Incentives Table -->
+            <div class="table-section">
+                <div class="section-header">
+                    <span>Commission Breakdown</span>
+                    <span style="font-size:11px; opacity:0.6" id="cntIncentives">0 items</span>
+                </div>
+                <div class="table-container">
+                    <table id="tblIncentives">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Agent</th>
+                                <th>Type</th>
+                                <th class="right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Taxes Table -->
+            <div class="table-section">
+                <div class="section-header">
+                    <span>Taxes & Deductions (Approved)</span>
+                    <span style="font-size:11px; opacity:0.6" id="cntTaxes">0 items</span>
+                </div>
+                <div class="table-container">
+                    <table id="tblTaxes">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Agent</th>
+                                <th class="right">Gross</th>
+                                <th class="right">Tax (10%)</th>
+                                <th class="right">Fee</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Rice Incentives Table -->
+            <div class="table-section" style="grid-column: span 2;">
+                <div class="section-header">
+                    <span>Rice Incentives (Memberships Collected)</span>
+                    <span style="font-size:11px; opacity:0.6" id="cntRice">0 items</span>
+                </div>
+                <div class="table-container" style="max-height: 300px;">
+                    <table id="tblRice">
+                        <thead>
+                            <tr>
+                                <th>Date Paid</th>
+                                <th>Agent</th>
+                                <th>Member Name</th>
+                                <th>OR No.</th>
+                                <th class="right">Reward</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Office Expenses Table -->
+            <div class="table-section" style="grid-column: span 2;">
+                <div class="section-header">
+                    <span>Office Expenses (First Monthly Payment Audit)</span>
+                    <span style="font-size:11px; opacity:0.6" id="cntOffice">0 items</span>
+                </div>
+                <div class="table-container" style="max-height: 300px;">
+                    <table id="tblOffice">
+                        <thead>
+                            <tr>
+                                <th>Date Paid</th>
+                                <th>Member Name</th>
+                                <th>Plan Type</th>
+                                <th>Agent</th>
+                                <th class="right">Allocation</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="./agent_incentives_taxes.js"></script>
+</body>
+
+</html>

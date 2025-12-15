@@ -165,7 +165,8 @@ function attach() {
     '#btnRegisterAgent': 'register-agent.html',
     '#btnInquires': 'inquiries.html',
     '#btnRequest': 'view-withdrawals.html',
-    '#btnGenerate': 'access_codes.html'
+    '#btnGenerate': 'access_codes.html',
+    '#btnIncentivesTaxes': 'agent_incentives_taxes.html'
   };
 
   Object.entries(dashboardMap).forEach(([selector, file]) => {
