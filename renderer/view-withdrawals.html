@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Withdrawal Requests — Maharlikan AssuredLife</title>
+  <title>Withdrawal Requests — Maharlikan Mortuary Care Services</title>
 
   <link rel="stylesheet" href="styles.css" />
 
@@ -133,6 +133,7 @@
     .table-wrap {
       max-height: 520px;
       overflow-y: auto;
+      overflow-x: auto;
       border-radius: 10px;
       border: 1px solid rgba(55, 65, 81, .7);
       background: #020617;
@@ -322,13 +323,18 @@
           <td>
             <span class="status-pill ${statusClass}">${req.status}</span>
           </td>
+          <td class="muted" style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${req.notes || ''}">
+            ${req.notes || '-'}
+          </td>
           <td>
+            <div style="display:flex; gap:5px;">
             ${canAct ? `
               <button class="btn btn-approve" data-action="approve" data-id="${req.id}">Approve</button>
               <button class="btn btn-reject" data-action="reject" data-id="${req.id}">Reject</button>
             ` : `
               <button class="btn btn-disabled" disabled>Done</button>
             `}
+            </div>
           </td>
         `;
 
@@ -465,6 +471,7 @@
                 <th>Period</th>
                 <th>Requested At</th>
                 <th>Status</th>
+                <th>Notes</th>
                 <th>Action</th>
               </tr>
             </thead>

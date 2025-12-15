@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Statement of Account - Maharlikan AssuredLife</title>
+    <title>Statement of Account - Maharlikan Mortuary Care Services</title>
 
     <style>
         * {
@@ -40,6 +40,17 @@
             background-size: 100% 30px;
             padding: 20px;
             position: relative;
+            overflow: hidden;
+            /* contain watermark */
+        }
+
+        .form-section,
+        .plan-section,
+        .beneficiaries-section,
+        .collections-section,
+        .soa-footer {
+            position: relative;
+            z-index: 1;
         }
 
         /* Header */
@@ -62,6 +73,38 @@
             font-size: 14px;
             color: #1e3a8a;
             font-weight: bold;
+        }
+
+        /* Watermark */
+        .watermark-container {
+            position: fixed;
+            /* Fixed position repeats on every printed page */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 0.1;
+            pointer-events: none;
+            z-index: 0;
+            width: 100%;
+        }
+
+        .watermark-container img {
+            width: 400px;
+            height: auto;
+            margin-bottom: 20px;
+            filter: grayscale(100%);
+        }
+
+        .watermark-text {
+            font-size: 40px;
+            font-weight: bold;
+            color: #1e3a8a;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            text-align: center;
         }
 
         /* AF Number in top right */
@@ -286,6 +329,10 @@
                 size: A4 landscape;
                 margin: 1cm;
             }
+
+            .collections-section {
+                page-break-before: always;
+            }
         }
     </style>
 </head>
@@ -305,9 +352,19 @@
                 </div>
 
                 <!-- Header -->
-                <div class="soa-header">
-                    <h1>STATEMENT OF ACCOUNT</h1>
-                    <div class="company-name">MAHARLIKAN ASSUREDLIFE</div>
+                <div class="soa-header"
+                    style="position: relative; display: flex; align-items: center; justify-content: center; gap: 15px;">
+                    <img src="../assets/logo.png" alt="Logo" style="width: 60px; height: 60px; object-fit: contain;">
+                    <div>
+                        <h1>STATEMENT OF ACCOUNT</h1>
+                        <div class="company-name">Maharlikan Mortuary Care Services</div>
+                    </div>
+                </div>
+
+                <!-- Watermark -->
+                <div class="watermark-container">
+                    <img src="../assets/logo.png" alt="Watermark">
+                    <div class="watermark-text">Maharlikan Mortuary Care Services</div>
                 </div>
 
                 <!-- Personal Information Section -->
@@ -386,10 +443,10 @@
 
                 <!-- Plan Section -->
                 <div class="plan-section">
-                    <h3>PLAN DETAILS</h3>
+                    <h3>PACKAGE DETAILS</h3>
                     <div class="form-row">
                         <div class="form-field third-width">
-                            <label>PLAN TYPE:</label>
+                            <label>PACKAGE:</label>
                             <span class="value" id="planType">-</span>
                         </div>
                         <div class="form-field third-width">
@@ -419,7 +476,7 @@
 
                     <div class="form-row">
                         <div class="form-field third-width">
-                            <label>DATE OF INCEPTION:</label>
+                            <label>DATE JOINED:</label>
                             <span class="value" id="dateInception">-</span>
                         </div>
                         <div class="form-field third-width">
@@ -439,9 +496,10 @@
                     <table class="collections-table" style="margin-top: 5px;">
                         <thead>
                             <tr>
-                                <th style="width: 40%;">NAME</th>
-                                <th style="width: 20%;">RELATION</th>
-                                <th style="width: 40%;">ADDRESS</th>
+                                <th style="width: 35%;">NAME</th>
+                                <th style="width: 15%;">RELATION</th>
+                                <th style="width: 15%;">BIRTHDATE</th>
+                                <th style="width: 35%;">ADDRESS</th>
                             </tr>
                         </thead>
                         <tbody id="beneficiariesContainer">
@@ -487,12 +545,13 @@
                     </div>
 
                     <!-- Agent -->
+                    <!-- Manager -->
                     <div class="signature-box" style="text-align: center;">
-                        <p style="font-weight: bold; margin-bottom: 40px; text-align: left;">Agent:</p>
+                        <p style="font-weight: bold; margin-bottom: 40px; text-align: left;">Manager:</p>
                         <div style="display: flex; flex-direction: column; align-items: center;">
                             <span id="footerAgent"
-                                style="font-weight: bold; text-decoration: underline; text-transform: uppercase;">-</span>
-                            <span style="font-size: 12px; margin-top: 4px;">Sales Executive</span>
+                                style="font-weight: bold; text-decoration: underline; text-transform: uppercase;">______________________</span>
+                            <span style="font-size: 12px; margin-top: 4px;">Manager</span>
                         </div>
                     </div>
 
@@ -501,7 +560,7 @@
                         <p style="font-weight: bold; margin-bottom: 40px; text-align: left;">Collector:</p>
                         <div style="display: flex; flex-direction: column; align-items: center;">
                             <span id="footerCollector"
-                                style="font-weight: bold; text-decoration: underline; text-transform: uppercase;">-</span>
+                                style="font-weight: bold; text-decoration: underline; text-transform: uppercase;">______________________</span>
                             <span style="font-size: 12px; margin-top: 4px;">Authorized Collector</span>
                         </div>
                     </div>

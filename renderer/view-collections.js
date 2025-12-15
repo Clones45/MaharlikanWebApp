@@ -14,6 +14,19 @@ const printBtn = document.getElementById('printBtn');
 const SB = window.SB;
 
 /* ---------- Helpers ---------- */
+const agentCache = {};
+
+async function loadAgents() {
+  try {
+    const { data } = await SB.from('agents').select('id, firstname, lastname');
+    (data || []).forEach(a => {
+      agentCache[a.id] = `${a.lastname}, ${a.firstname}`;
+    });
+  } catch (e) {
+    console.error('Error loading agents', e);
+  }
+}
+
 function showRowMessage(msg, kind = 'muted') {
   tbody.innerHTML = `<tr><td colspan="9" class="${kind}">${msg}</td></tr>`;
 }
@@ -50,6 +63,7 @@ async function init() {
 
   updatePeriodLabel();
   wireEvents();
+  await loadAgents(); // <--- PRE-LOAD AGENTS
   await loadAndRender();
 }
 
@@ -120,7 +134,7 @@ async function loadAndRender() {
     // 🔍 Query: Strictly match date_paid within the cutoff range
     const { data, error } = await SB
       .from('collections')
-      .select('maf_no, last_name, first_name, address, plan_type, payment, or_no, payment_for, date_paid, collection_month')
+      .select('maf_no, last_name, first_name, address, plan_type, payment, or_no, payment_for, date_paid, collection_month, collector_id, agent_id')
       .gte('date_paid', startDate)
       .lte('date_paid', endDate)
       .order('date_paid', { ascending: false });
@@ -146,6 +160,7 @@ async function loadAndRender() {
       total += isFinite(amt) ? amt : 0;
       return `
         <tr>
+          <td>${fmtDate(row.date_paid)}</td>
           <td>${esc(row.maf_no ?? '')}</td>
           <td>${esc(row.last_name ?? '')}</td>
           <td>${esc(row.first_name ?? '')}</td>
@@ -154,7 +169,7 @@ async function loadAndRender() {
           <td>${esc(row.or_no ?? '')}</td>
           <td class="right">${amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           <td>${esc(row.payment_for ?? '')}</td>
-          <td>${fmtDate(row.date_paid)}</td>
+          <td style="color:#fbbf24">${esc(agentCache[row.collector_id] || agentCache[row.agent_id] || row.collector_id || '--')}</td>
         </tr>
       `;
     }).join('');
@@ -183,13 +198,13 @@ function exportToPDF() {
   doc.text(title, 14, 18);
 
   const head = [[
-    'AF No', 'Last Name', 'First Name', 'Address',
-    'Plan Type', 'OR No', 'Amount', 'Payment Type', 'Date Collected'
+    'Date Collected', 'AF No', 'Last Name', 'First Name', 'Address',
+    'Plan Type', 'OR No', 'Amount', 'Payment Type', 'Collector'
   ]];
   const body = [];
   document.querySelectorAll('#tbody tr').forEach(tr => {
     const tds = Array.from(tr.querySelectorAll('td')).map(td => td.textContent || '');
-    if (tds.length >= 9) body.push(tds);
+    if (tds.length >= 10) body.push(tds);
   });
 
   const total = document.getElementById('totalCell')?.textContent ?? '0.00';
@@ -200,7 +215,7 @@ function exportToPDF() {
     startY: 26,
     styles: { fontSize: 9 },
     headStyles: { fillColor: [11, 77, 135] },
-    columnStyles: { 6: { halign: 'right' } },
+    columnStyles: { 7: { halign: 'right' } }, // Adjusted index for Amount
     margin: { left: 10, right: 10 }
   });
 

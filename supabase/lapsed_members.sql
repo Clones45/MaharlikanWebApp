@@ -1,4 +1,3 @@
-
 DROP FUNCTION IF EXISTS get_lapsed_members();
 
 CREATE OR REPLACE FUNCTION get_lapsed_members()
@@ -31,8 +30,10 @@ RETURNS TABLE (
     agent_id bigint,
     created_at timestamptz,
     plan_start_date date,
+    phone_number text,
     months_paid bigint,
-    months_since_start double precision
+    months_since_start double precision,
+    months_behind double precision
 )
 LANGUAGE sql
 AS $$
@@ -65,19 +66,37 @@ AS $$
       m.agent_id,
       m.created_at,
       m.plan_start_date,
+      m.phone_number,
+
+      -- months paid
       COUNT(c.id) AS months_paid,
+
+      -- months since start
       (
         DATE_PART('year', AGE(CURRENT_DATE, m.plan_start_date)) * 12 +
         DATE_PART('month', AGE(CURRENT_DATE, m.plan_start_date))
-      ) AS months_since_start
+      ) AS months_since_start,
+
+      -- 👇 THIS WAS MISSING — REQUIRED BY YOUR MOBILE CODE 👇
+      (
+        (
+          DATE_PART('year', AGE(CURRENT_DATE, m.plan_start_date)) * 12 +
+          DATE_PART('month', AGE(CURRENT_DATE, m.plan_start_date))
+        ) - COUNT(c.id)
+      ) AS months_behind
+
   FROM members m
   LEFT JOIN collections c ON c.member_id = m.id
   WHERE m.plan_type LIKE 'PACKAGE%'
   GROUP BY m.id
-  HAVING COUNT(c.id) < (
+
+  -- LAPSED RULE: months_behind > 3
+  HAVING 
       (
-        DATE_PART('year', AGE(CURRENT_DATE, m.plan_start_date)) * 12 +
-        DATE_PART('month', AGE(CURRENT_DATE, m.plan_start_date))
-      ) - 3
-  );
+        (
+          DATE_PART('year', AGE(CURRENT_DATE, m.plan_start_date)) * 12 +
+          DATE_PART('month', AGE(CURRENT_DATE, m.plan_start_date))
+        ) - COUNT(c.id)
+      ) > 3
+  ORDER BY m.last_name ASC, m.first_name ASC;
 $$;

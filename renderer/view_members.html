@@ -35,6 +35,46 @@
       background: rgba(211, 47, 47, 0.25);
     }
 
+    .badge-active {
+      display: inline-block;
+      background: #22c55e;
+      /* Green-500 */
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+
+    table.grid tbody tr.row-active td {
+      background: rgba(34, 197, 94, 0.15);
+    }
+
+    table.grid tbody tr.row-active:hover td {
+      background: rgba(34, 197, 94, 0.25);
+    }
+
+    .badge-warning {
+      display: inline-block;
+      background: #f59e0b;
+      /* Amber-500 */
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+
+    table.grid tbody tr.row-warning td {
+      background: rgba(245, 158, 11, 0.15);
+    }
+
+    table.grid tbody tr.row-warning:hover td {
+      background: rgba(245, 158, 11, 0.25);
+    }
+
     .badge-at-risk {
       display: inline-block;
       background: #fbbf24;
@@ -549,7 +589,7 @@
 
   <div class="page">
     <header class="page-header">
-      <h1>Maharlikan AssuredLife</h1>
+      <h1>Maharlikan Mortuary Care Services</h1>
     </header>
 
     <main class="card">
@@ -563,9 +603,11 @@
           <span
             style="margin: 0 8px; border-left: 1px solid rgba(255,255,255,0.2); height: 20px; display: inline-block; vertical-align: middle;"></span>
           <button id="filterCardBtn" class="btn" style="background:#2d3748">MS</button>
-          <button id="filterDeferredBtn" class="btn" style="background:#2d3748">DEFERRED</button>
-          <button id="filterNonDeferredBtn" class="btn" style="background:#2d3748">NON-DEFERRED</button>
-          <button id="filterAtRiskBtn" class="btn" style="background:#2d3748">AT RISK</button>
+          <button id="filterDeferredBtn" class="btn" style="background:#2d3748">DC</button>
+          <button id="filterNonDeferredBtn" class="btn" style="background:#2d3748">NDC</button>
+          <button id="filterActiveBtn" class="btn" style="background:#2d3748">ACTIVE</button>
+          <button id="filterWarningBtn" class="btn" style="background:#2d3748">WARNING</button>
+          <button id="filterAtRiskBtn" class="btn" style="background:#2d3748">LAPSABLE</button>
         </div>
         <input id="searchInput" type="text" placeholder="Search members...">
 
@@ -624,7 +666,7 @@
                 <th>Birth Date</th>
                 <th>Age</th>
                 <th>Monthly Due</th>
-                <th>Plan Type</th>
+                <th>Package Type</th>
                 <th>Contracted Price</th>
                 <th>Date Joined</th>
                 <th>Balance</th>

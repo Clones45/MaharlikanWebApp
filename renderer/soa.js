@@ -380,12 +380,12 @@ async function onExportPDF() {
 
   doc.setFontSize(10);
   doc.setTextColor(50);
-  doc.text("Agent Signature", leftX + 40, signY + 15);
+  doc.text("Manager Signature", leftX + 40, signY + 15);
   doc.text("Member Signature", rightX + 40, signY + 15);
 
   doc.setFontSize(9);
   doc.setTextColor(80);
-  doc.text(currentData.agentName || "", leftX + 40, signY + 30);
+  // doc.text(currentData.agentName || "", leftX + 40, signY + 30); // User requested blank
   doc.text(`${currentData.member.first_name || ""} ${currentData.member.last_name || ""}`, rightX + 40, signY + 30);
 
   doc.save(`SOA_${currentData.member.maf_no}.pdf`);

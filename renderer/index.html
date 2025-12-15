@@ -1,18 +1,21 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Maharlikan Admin Desktop</title>
   <link rel="stylesheet" href="./styles.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Poppins:wght@400;600&display=swap"
+    rel="stylesheet">
 </head>
 
 <body>
   <section id="dashboard">
     <!-- Fixed header -->
     <header class="app-header glass-top">
-      <h1 class="brand-title">Maharlikan AssuredLife</h1>
+      <h1 class="brand-title">Maharlikan Mortuary Care Services</h1>
       <div class="header-right">
         <span id="user-info"></span>
         <button id="btnMenuLogout" class="btn btn-danger pill">Logout</button>
@@ -23,34 +26,35 @@
     <div class="menu-bg"></div>
 
     <!-- Main -->
-<main class="menu-wrap">
-  <section class="menu-card menu-wide glass">
-    <div class="menu-head">
-      <h2 class="menu-title">Admin Dashboard</h2>
-      <div class="menu-divider"></div>
-    </div>
+    <main class="menu-wrap">
+      <section class="menu-card menu-wide glass">
+        <div class="menu-head">
+          <h2 class="menu-title">Admin Dashboard</h2>
+          <div class="menu-divider"></div>
+        </div>
 
-    <div class="menu-buttons horizontal">
-      <button class="menu-btn" id="btnNewMember"><span class="icon">👤</span> New Member</button>
-      <button class="menu-btn" id="btnViewMembers"><span class="icon">📜</span> View Members</button>
-      <button class="menu-btn" id="btnAddCollections"><span class="icon">💳</span> Add Collections</button>
-      <button class="menu-btn" id="btnViewCollections"><span class="icon">📂</span> View Collections</button>
-      <button class="menu-btn" id="btnViewCommissions"><span class="icon">💰</span> View Commissions</button>
-      <button class="menu-btn" id="btnViewHierarchy"><span class="icon">🧩</span> View Hierarchy</button>
-      <button class="menu-btn" id="btnEditMembers"><span class="icon">✏️</span> Edit Info</button>
-      <button class="menu-btn" id="btnSoa"><span class="icon">🧾</span> S.O.A</button>
-      <button class="menu-btn" id="btnRegisterAgent"><span class="icon">🪪</span> Register Agent</button>
-      <button class="menu-btn" id="btnInquires"><span class="icon">💬</span> Website Inquiries</button>
-      <button class="menu-btn" id="btnRequest"><span class="icon">💳</span> Withdrawal Requests</button>
-      <button class="menu-btn" id="btnGenerate"><span class="icon">💳</span> Code Generator</button>
+        <div class="menu-buttons horizontal">
+          <button class="menu-btn" id="btnNewMember"><span class="icon">👤</span> New Member</button>
+          <button class="menu-btn" id="btnViewMembers"><span class="icon">📜</span> View Members</button>
+          <button class="menu-btn" id="btnAddCollections"><span class="icon">💳</span> Add Collections</button>
+          <button class="menu-btn" id="btnViewCollections"><span class="icon">📂</span> View Collections</button>
+          <button class="menu-btn" id="btnViewCommissions"><span class="icon">💰</span> View Commissions</button>
+          <button class="menu-btn" id="btnViewHierarchy"><span class="icon">🧩</span> View Hierarchy</button>
+          <button class="menu-btn" id="btnEditMembers"><span class="icon">✏️</span> Edit Info</button>
+          <button class="menu-btn" id="btnSoa"><span class="icon">🧾</span> S.O.A</button>
+          <button class="menu-btn" id="btnRegisterAgent"><span class="icon">🪪</span> Register Agent</button>
+          <button class="menu-btn" id="btnInquires"><span class="icon">💬</span> Website Inquiries</button>
+          <button class="menu-btn" id="btnRequest"><span class="icon">💳</span> Withdrawal Requests</button>
+          <button class="menu-btn" id="btnGenerate"><span class="icon">💳</span> Code Generator</button>
 
-    </div>
-  </section>
-</main>
+        </div>
+      </section>
+    </main>
 
   </section>
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="./app.js"></script>
 </body>
+
 </html>

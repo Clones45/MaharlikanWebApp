@@ -262,8 +262,8 @@
           </div>
         </div>
 
-        <!-- NEW ROW: OR Number + Payment Type -->
-        <div class="row two">
+        <!-- NEW ROW: OR Number + Payment Type + Collector -->
+        <div class="row three">
           <div>
             <label for="or_no">OR No.</label>
             <input id="or_no" name="or_no" type="text" placeholder="Enter OR / Receipt No." />
@@ -273,6 +273,13 @@
             <select id="payment_for" name="payment_for">
               <option value="regular">Regular / Monthly</option>
               <option value="membership">Membership Fee</option>
+            </select>
+          </div>
+          <div>
+            <label for="collector_id">Collector</label>
+            <select id="collector_id" name="collector_id">
+              <option value="">— Same as Agent —</option>
+              <option disabled>Loading...</option>
             </select>
           </div>
         </div>
@@ -323,10 +330,15 @@
       const deduct = document.getElementById('deduct_now');
       const amount = document.getElementById('amount');
       const amountNote = document.getElementById('amountNote');
-      const commissionChecks = document.getElementById('commissionChecks');
+      const orNo = document.getElementById('or_no');
 
       function updateAmountUI() {
         const isMembership = paymentFor.value === 'membership';
+        if (orNo) {
+          orNo.disabled = false;
+          orNo.readOnly = false;
+        }
+
         if (isMembership) {
           commissionChecks.style.display = 'none';
           const val = deduct.checked ? 350 : 500;

@@ -383,19 +383,53 @@ async function handleWithdraw(agentId, mode, customAmount) {
     if (targetAmount < 500) return toast('Minimum withdrawal per transaction is ₱500.00', 'error');
     if (targetAmount > currentBalance) return toast(`Requested amount is higher than your wallet balance (${peso(currentBalance)}).`, 'error');
 
+    // --- Retrieve Note ---
+    const noteEl = qs(`inp-wnote-${agentId}`);
+    const noteVal = noteEl ? noteEl.value.trim() : '';
+
+    // --- Deduction Logic ---
+    const tax = targetAmount * 0.10;
+    const fee = 50.00;
+    const net = targetAmount - tax - fee;
+
+    if (net <= 0) {
+      return toast(`Amount too low. After Tax (10%) and Fee (₱50), net is ${peso(net)}.`, 'error');
+    }
+
+    // --- Confirmation Dialog ---
+    const msg = `Withdrawal Summary:
+---------------------------
+Gross Amount:    ${peso(targetAmount)}
+Less Tax (10%):  ${peso(tax)}
+Less Proc. Fee:  ${peso(fee)}
+---------------------------
+Net Receivable:  ${peso(net)}
+Note:            ${noteVal || '(None)'}
+
+Proceed with this withdrawal?`;
+
+    if (!confirm(msg)) return;
+
     const { error: rpcErr } = await supabase.rpc('withdraw_commission', {
       p_agent_id: agentId,
-      p_amount: targetAmount
+      p_amount: targetAmount,
+      p_method: 'Gcash',
+      p_notes: noteVal
     });
 
     if (rpcErr) throw rpcErr;
 
-    toast(`Withdrawal of ${peso(targetAmount)} processed.`, 'success');
+    toast(`Withdrawal submitted. Net: ${peso(net)}`, 'success');
     await loadAndRender();
 
   } catch (e) {
     console.error('Withdraw Error:', e);
-    toast('Unexpected error while withdrawing', 'error');
+    // Parse RPC error if possible
+    if (e.message && e.message.includes('pending withdrawal')) {
+      toast('You already have a pending withdrawal request.', 'error');
+    } else {
+      toast(e.message || 'Unexpected error while withdrawing', 'error');
+    }
   }
 }
 
@@ -423,6 +457,7 @@ async function renderTable(rollups, agents, byAgentCols, py, pm, range) {
     tr.innerHTML = `
       <td style="color:#60a5fa;cursor:pointer;">${esc(name)}</td>
       <td class="right">${peso(r.monthly)}</td>
+      <td class="right" style="color:#fbbf24">${peso(r.travel)}</td>
       <td class="right">${peso(r.overrides)}</td>
       <td class="right">${peso(r.outright)}</td>
       <td class="right">${peso(r.recruiter)}</td>
@@ -450,7 +485,7 @@ async function renderAgentDetail(rowTr, aid, range, rollup) {
   // Fetch detailed info
   const { data: colls } = await supabase.from('collections')
     .select('date_paid,or_no,payment_for,member_id,payment,first_name,last_name')
-    .eq('agent_id', aid)
+    .or(`agent_id.eq.${aid},collector_id.eq.${aid}`)
     .gte('date_paid', range.gte).lt('date_paid', range.lt);
 
   const { data: wallet } = await supabase.from('agent_wallets')
@@ -482,10 +517,11 @@ async function renderAgentDetail(rowTr, aid, range, rollup) {
     <div>
       <h4>Breakdown</h4>
       <table class="detail-table">
+      <tr><td>Outright</td><td class="right">${peso(rollup.outright)}</td></tr>
         <tr><td>Monthly</td><td class="right">${peso(rollup.monthly)}</td></tr>
-        <tr><td>Outright</td><td class="right">${peso(rollup.outright)}</td></tr>
         <tr><td>Overrides</td><td class="right">${peso(rollup.overrides)}</td></tr>
-        <tr><td>Recruiter</td><td class="right">${peso(rollup.recruiter)}</td></tr>
+        <tr><td>Travel</td><td class="right">${peso(rollup.travel)}</td></tr>
+        <tr><td>RLC</td><td class="right">${peso(rollup.recruiter)}</td></tr>
         <tr style="border-top:1px solid #ffffff22">
           <td><b>Total Earned</b></td>
           <td class="right" style="color:#4ade80;font-weight:700">${peso(rollup.total)}</td>
@@ -495,10 +531,6 @@ async function renderAgentDetail(rowTr, aid, range, rollup) {
     <div>
       <h4>Classification</h4>
       <table class="detail-table">
-        <tr>
-          <td style="color:#94a3b8">Travel (Sep)</td>
-          <td class="right" style="color:#fcd34d">${peso(rollup.travel)}</td>
-        </tr>
         <tr>
           <td style="color:#94a3b8">Receivable (Unpaid + Overrides)</td>
           <td class="right" style="color:#4ade80">${peso(rollup.receivable)}</td>
@@ -518,9 +550,10 @@ async function renderAgentDetail(rowTr, aid, range, rollup) {
       <div style="font-size:12px;color:#94a3b8">Withdrawable Balance</div>
       <div style="font-size:16px;font-weight:700;color:#34d399">${peso(withdrawableTotal)}</div>
     </div>
-    <div style="display:flex; gap:8px;">
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input type="text" class="dark-input" id="inp-wnote-${aid}" placeholder="Note (optional)" style="width:150px;">
       <button class="action-btn btn-green" id="btn-wall-${aid}">Withdraw All</button>
-      <input type="number" class="dark-input" id="inp-wcustom-${aid}" placeholder="Amount" style="width:100px;">
+      <input type="number" class="dark-input" id="inp-wcustom-${aid}" placeholder="Amt" style="width:80px;">
       <button class="action-btn btn-blue" id="btn-wcustom-${aid}">Withdraw</button>
     </div>
   </div>

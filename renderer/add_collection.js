@@ -42,6 +42,25 @@ function logError(context, err) {
   toast(`${context} failed. Check console.`, 'error');
 }
 
+/** toggle submit button state */
+function setBusy(busy) {
+  const btn = qs('button[type="submit"]');
+  if (!btn) return;
+
+  if (busy) {
+    if (!btn.dataset.originalText) btn.dataset.originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    btn.style.opacity = '0.7';
+    btn.style.cursor = 'wait';
+  } else {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.originalText || '💾 Save Collection';
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  }
+}
+
 /* ==========================================================================
    2. APP STATE & SUPABASE
    ========================================================================== */
@@ -85,6 +104,7 @@ async function boot() {
     }
 
     wireEvents();
+    await loadCollectors(); // Pre-load collectors
   } catch (e) {
     logError('boot', e);
   }
@@ -131,6 +151,38 @@ function infoSet(html) {
 }
 
 /* ==========================================================================
+   4A. COLLECTOR LOADING
+   ========================================================================== */
+async function loadCollectors() {
+  const sel = qs('#collector_id');
+  if (!sel) return;
+
+  try {
+    const { data: agents, error } = await supabase
+      .from('agents')
+      .select('id, firstname, lastname')
+      .order('firstname', { ascending: true });
+
+    if (error) throw error;
+
+    // Build options
+    // Keep the first default option "— Same as Agent —"
+    sel.innerHTML = '<option value="">— Same as Agent —</option>';
+
+    (agents || []).forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = `${a.firstname} ${a.lastname}`;
+      sel.appendChild(opt);
+    });
+
+  } catch (err) {
+    console.error('loadCollectors failed', err);
+    sel.innerHTML = '<option value="">(Error loading agents)</option>';
+  }
+}
+
+/* ==========================================================================
    4. MEMBER LOADING & LOGIC
    ========================================================================== */
 async function loadMemberForMAF() {
@@ -168,22 +220,58 @@ async function loadMemberForMAF() {
 
     currentMember = data[0];
 
-    // Calculate installments
-    const installmentsPaid = await calculateInstallmentsPaid(
+    // Calculate installments & Validate Balance
+    const { count: installmentsPaid, totalPaid, error: calcErr } = await calculateInstallmentsPaid(
       currentMember.id,
       num(currentMember.monthly_due)
     );
 
+    if (!calcErr) {
+      // Self-Healing: Check if balance is out of sync
+      const contracted = num(currentMember.contracted_price);
+      if (contracted > 0) {
+        const expectedBalance = Math.max(0, contracted - totalPaid);
+        const currentBal = num(currentMember.balance);
+
+        // Allow tiny float diff, but if different, fix it
+        if (Math.abs(expectedBalance - currentBal) > 0.5) {
+          console.warn(`[Auto-Fix] Balance mismatch! DB: ${currentBal}, Calc: ${expectedBalance}. Fixing...`);
+          await recomputeMemberBalance(currentMember.id);
+          // Reload member to get fresh data
+          const { data: fresh } = await supabase.from('members').select('*').eq('id', currentMember.id).single();
+
+
+          if (fresh) currentMember = fresh;
+        }
+      }
+    }
+
+    // Fetch Agent Name
+    let agentName = 'None';
+    if (currentMember.agent_id) {
+      const { data: ag } = await supabase
+        .from('agents')
+        .select('firstname, lastname')
+        .eq('id', currentMember.agent_id)
+        .maybeSingle();
+      if (ag) {
+        agentName = `${ag.firstname} ${ag.lastname}`;
+      } else {
+        agentName = `(ID: ${currentMember.agent_id})`;
+      }
+    }
+
     // Render Info
     info.innerHTML = [
       `<b>Name:</b> ${esc(currentMember.first_name || 'N/A')} ${esc(currentMember.last_name || '')}`,
-      `<b>Plan:</b> ${esc(currentMember.plan_type || 'N/A')}`,
+      `<b>Package:</b> ${esc(currentMember.plan_type || 'N/A')}`,
       `<b>Monthly Due:</b> ${peso(currentMember.monthly_due)}`,
       `<b>Contracted Price:</b> ${peso(currentMember.contracted_price)}`,
       `<b>Balance:</b> ${peso(currentMember.balance)}`,
       `<b>Installments Paid:</b> ${installmentsPaid} months`,
       `<b>Membership Paid:</b> ${currentMember.membership_paid ? '✅ Yes' : '❌ No'}`,
       `<b>Address:</b> ${esc(currentMember.address || 'N/A')}`,
+      `<b>Agent:</b> ${esc(agentName)}`,
     ].join('\n');
 
     applyInstallmentLocks(currentMember, installmentsPaid);
@@ -195,7 +283,7 @@ async function loadMemberForMAF() {
 }
 
 async function calculateInstallmentsPaid(memberId, monthlyDue) {
-  if (!memberId || monthlyDue <= 0) return 0;
+  if (!memberId) return { count: 0, totalPaid: 0 };
 
   try {
     const { data: cols, error } = await supabase
@@ -214,10 +302,11 @@ async function calculateInstallmentsPaid(memberId, monthlyDue) {
       }
     }
 
-    return Math.floor(totalRegular / monthlyDue);
+    const count = (monthlyDue > 0) ? Math.floor(totalRegular / monthlyDue) : 0;
+    return { count, totalPaid: totalRegular };
   } catch (e) {
     console.error('[calcInstallments]', e);
-    return 0;
+    return { count: 0, totalPaid: 0, error: e };
   }
 }
 
@@ -289,66 +378,75 @@ function applyInstallmentLocks(member, knownInstallments = null) {
    ========================================================================== */
 async function onSave(e) {
   e.preventDefault();
-  if (!currentMember) {
-    await loadMemberForMAF();
-    if (!currentMember) return;
-  }
 
-  // --- 1. Gather Inputs ---
-  const afNumber = (qs('#maf_no')?.value || '').trim();
-  const rawAmount = (qs('#amount')?.value || '').replace(/[, ]/g, '');
-  const inputAmount = num(rawAmount);
-  const datePaid = qs('#date_paid')?.value || today();
-  const orNumber = (qs('#or_no')?.value || '').trim();
-  const paymentFor = (qs('#payment_for')?.value || '').toLowerCase();
-
-  // --- 2. Determine Modes & Flags ---
-  const isMembership = paymentFor.includes('membership');
-
-  // Checkboxes
-  // Ensure strict boolean values
-  const isMonthly = isChecked('#monthly_commission_given');
-  const isTravel = isChecked('#travel_allowance_given');
-
-  // Logic: Deduct flag only applies to membership
-  const isDeduct = !!(isMembership && isChecked('#deduct_now'));
-
-  // Derived Personally Collected Status (User Logic)
-  // If ANY commission flag is checked OR it is a deducted membership, we treat as paid/personally collected.
-  const isPersonallyCollected = !!(isMonthly || isTravel || isDeduct);
-
-  const outrightMode = isDeduct ? 'deduct' : 'accrue';
-
-  // --- 3. Validate ---
-  if (!afNumber) return toast('AF No is required.', 'error');
-  if (!orNumber) {
-    qs('#or_no')?.focus();
-    return toast('OR No. is required.', 'error');
-  }
-
-  if (!currentMember.agent_id) {
-    return toast("This member has no Agent Assigned yet.", "error");
-  }
-
-  // --- 4. Determine Exact Payment Amount ---
-  let finalPayment = inputAmount;
-
-  if (isMembership) {
-    // Membership Rule: Deduct=350, Accrue=500
-    finalPayment = isDeduct ? 350 : 500;
-  } else {
-    // Regular validation
-    if (finalPayment <= 0) {
-      qs('#amount')?.focus();
-      return toast('Enter a valid amount.', 'error');
-    }
-  }
+  // ✅ Prevent double-clicks
+  setBusy(true);
 
   try {
+    if (!currentMember) {
+      await loadMemberForMAF();
+      if (!currentMember) return; // Validation handled in loadMemberForMAF
+    }
+
+    // --- 1. Gather Inputs ---
+    const afNumber = (qs('#maf_no')?.value || '').trim();
+    const rawAmount = (qs('#amount')?.value || '').replace(/[, ]/g, '');
+    const inputAmount = num(rawAmount);
+    const datePaid = qs('#date_paid')?.value || today();
+    const orNumber = (qs('#or_no')?.value || '').trim();
+    const paymentFor = (qs('#payment_for')?.value || '').toLowerCase();
+    const collectorIdStr = (qs('#collector_id')?.value || '').trim();
+
+    // --- 2. Determine Modes & Flags ---
+    const isMembership = paymentFor.includes('membership');
+
+    // Checkboxes
+    // Ensure strict boolean values
+    const isMonthly = isChecked('#monthly_commission_given');
+    const isTravel = isChecked('#travel_allowance_given');
+
+    // Logic: Deduct flag only applies to membership
+    const isDeduct = !!(isMembership && isChecked('#deduct_now'));
+
+    // Derived Personally Collected Status (User Logic)
+    // If ANY commission flag is checked OR it is a deducted membership, we treat as paid/personally collected.
+    const isPersonallyCollected = !!(isMonthly || isTravel || isDeduct);
+
+    const outrightMode = isDeduct ? 'deduct' : 'accrue';
+
+    // --- 3. Validate ---
+    if (!afNumber) { toast('AF No is required.', 'error'); return; }
+    if (!orNumber) {
+      qs('#or_no')?.focus();
+      toast('OR No. is required.', 'error');
+      return;
+    }
+
+    if (!currentMember.agent_id) {
+      toast("This member has no Agent Assigned yet.", "error");
+      return;
+    }
+
+    // --- 4. Determine Exact Payment Amount ---
+    let finalPayment = inputAmount;
+
+    if (isMembership) {
+      // Membership Rule: Deduct=350, Accrue=500
+      finalPayment = isDeduct ? 350 : 500;
+    } else {
+      // Regular validation
+      if (finalPayment <= 0) {
+        qs('#amount')?.focus();
+        toast('Enter a valid amount.', 'error');
+        return;
+      }
+    }
+
     // --- 5. Construct Payload ---
     const payload = {
       member_id: currentMember.id,
       agent_id: currentMember.agent_id,
+      collector_id: collectorIdStr || currentMember.agent_id, // Explicitly set collector
       maf_no: currentMember.maf_no,
 
       payment: finalPayment,
@@ -387,6 +485,77 @@ async function onSave(e) {
     // --- 6. Post-Save Actions ---
     await recomputeMemberBalance(currentMember.id);
 
+    // --- 7. Reinstatement Check (Check if member was Lapsed and paid enough to reactivate) ---
+    // We check the PRE-PAYMENT status naturally because we have 'currentMember' (stale) vs new state
+    // But we need to use robust logic.
+
+    const mDue = num(currentMember.monthly_due);
+    const oldBalance = num(currentMember.balance);
+    const cPrice = num(currentMember.contracted_price);
+
+    // Re-fetch member to get UPDATED balance for calculations
+    const { data: freshMem } = await supabase.from('members').select('*').eq('id', currentMember.id).single();
+
+    if (freshMem && mDue > 0) {
+      // Calculate Pre-Payment Status Logic
+      // We simulate "Months Behind" BEFORE this payment
+      // Actually, simpler: if they WERE lapsed (>3 months behind) and just paid >= 1 month, we reinstate.
+
+      // 1. Calculate Old Months Behind
+      const oldStartStr = currentMember.plan_start_date || currentMember.date_joined;
+      let oldStart = oldStartStr ? new Date(oldStartStr) : new Date();
+      const now = new Date();
+      let oldMonthsSince = (now.getFullYear() - oldStart.getFullYear()) * 12 + (now.getMonth() - oldStart.getMonth());
+      if (now.getDate() < oldStart.getDate()) oldMonthsSince--;
+      if (oldMonthsSince < 0) oldMonthsSince = 0;
+
+      let oldPaidCount = 0;
+      if (mDue > 0 && cPrice > 0) {
+        oldPaidCount = (cPrice - oldBalance) / mDue;
+      }
+      const oldMonthsBehind = oldMonthsSince - oldPaidCount;
+
+      // 2. Check Reinstatement Condition
+      // Member was Lapsed (> 3) AND Paid at least 1 month
+      const paidAmount = num(payload.payment);
+
+      if (oldMonthsBehind > 3 && paidAmount >= mDue) {
+        console.log('[Reinstatement] Member was lapsed. Adjusting Plan Start Date...');
+
+        // NEW Logic: Reset Plan Start Date so they become "Active" (0 months behind or close to it)
+        // NewStartDate = Today - (TotalInstallmentsPaid months)
+
+        const newBalance = num(freshMem.balance);
+        const totalPaidAmount = cPrice - newBalance;
+        const totalPaidMonths = totalPaidAmount / mDue; // e.g. 5.0
+
+        // Subtract months from Today
+        const newStartDate = new Date();
+        // Logic: Set date such that (Now - Start) ~= TotalPaidMonths
+        // So Start = Now - TotalPaidMonths
+
+        // Handle partial months? Usually integer months is fine for start date
+        const monthsToShift = Math.floor(totalPaidMonths);
+        newStartDate.setMonth(newStartDate.getMonth() - monthsToShift);
+
+        const newStartStr = newStartDate.toISOString().slice(0, 10);
+
+        const { error: upDateErr } = await supabase
+          .from('members')
+          .update({ plan_start_date: newStartStr })
+          .eq('id', currentMember.id);
+
+        if (!upDateErr) {
+          toast('✅ Payment Saved. Member REINSTATED to Active Status!', 'success');
+          // Refresh UI
+          await loadMemberForMAF();
+          partialResetForm();
+          setBusy(false);
+          return;
+        }
+      }
+    }
+
     toast('✅ Collection saved successfully.', 'success');
 
     // Refresh UI with latest balance
@@ -397,6 +566,9 @@ async function onSave(e) {
 
   } catch (err) {
     logError('onSave', err);
+  } finally {
+    // ✅ Always re-enable button
+    setBusy(false);
   }
 }
 
@@ -416,6 +588,9 @@ function partialResetForm() {
   if (qs('#monthly_commission_given')) qs('#monthly_commission_given').checked = false;
   if (qs('#travel_allowance_given')) qs('#travel_allowance_given').checked = false;
   if (qs('#deduct_now')) qs('#deduct_now').checked = false;
+
+  // Reset Collector to default
+  if (qs('#collector_id')) qs('#collector_id').value = '';
 }
 
 /**

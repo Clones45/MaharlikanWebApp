@@ -84,6 +84,8 @@ function wire() {
   const fCard = qs('#filterCardBtn');
   const fDef = qs('#filterDeferredBtn');
   const fNon = qs('#filterNonDeferredBtn');
+  const fActive = qs('#filterActiveBtn');
+  const fWarning = qs('#filterWarningBtn');
   const fAtRisk = qs('#filterAtRiskBtn');
 
   function setActive(btn, name) {
@@ -97,15 +99,15 @@ function wire() {
         setMsg('Restored full member list.');
       }
     } else {
-      // If we are switching FROM Lapsed/AtRisk TO something else, restore first
-      if (window._currentFilter === 'LAPSED' || window._currentFilter === 'AT_RISK') {
+      // If we are switching FROM Lapsed/AtRisk/Warning/Active TO something else, restore first
+      if (window._currentFilter === 'LAPSED' || window._currentFilter === 'AT_RISK' || window._currentFilter === 'WARNING' || window._currentFilter === 'ACTIVE') {
         _allMembers = [..._cachedAllMembers];
       }
 
       // set new
       window._currentFilter = name;
       // reset others
-      [fLapsed, fCard, fDef, fNon, fAtRisk].forEach(b => {
+      [fLapsed, fCard, fDef, fNon, fAtRisk, fWarning, fActive].forEach(b => {
         if (b) {
           b.style.background = '#2d3748';
           b.style.border = '0';
@@ -127,6 +129,20 @@ function wire() {
         loadAtRiskMembers();
         return;
       }
+
+      if (name === 'WARNING') {
+        btn.style.background = '#f59e0b'; // Amber active
+        btn.style.color = '#fff';
+        loadWarningMembers();
+        return;
+      }
+
+      if (name === 'ACTIVE') {
+        btn.style.background = '#22c55e'; // Green active
+        btn.style.color = '#fff';
+        loadActiveMembers();
+        return;
+      }
     }
     _currentPage = 1;
     renderTable();
@@ -136,6 +152,8 @@ function wire() {
   fCard?.addEventListener('click', () => setActive(fCard, 'MS'));
   fDef?.addEventListener('click', () => setActive(fDef, 'DEFERRED'));
   fNon?.addEventListener('click', () => setActive(fNon, 'NON_DEFERRED'));
+  fActive?.addEventListener('click', () => setActive(fActive, 'ACTIVE'));
+  fWarning?.addEventListener('click', () => setActive(fWarning, 'WARNING'));
   fAtRisk?.addEventListener('click', () => setActive(fAtRisk, 'AT_RISK'));
 
   // Pagination
@@ -169,7 +187,7 @@ function renderTable() {
     if (!filter) return true;
 
     // Calculate Installments Paid
-    // Formula: (Contracted Price - Balance) / Monthly Due
+    // Formula: (Contracted - Balance) / Monthly Due
     const cPrice = Number(m.contracted_price) || 0;
     const bal = Number(m.balance) || 0;
     const mDue = Number(m.monthly_due) || 0;
@@ -204,35 +222,33 @@ function renderTable() {
   tbody.innerHTML = '';
 
   pageItems.forEach(m => {
-    // Determine status badge
-    let statusHtml = '';
-    const isLapsed = (window._currentFilter === 'LAPSED');
-    const isAtRisk = (window._currentFilter === 'AT_RISK');
-
-    // 1. Check for Lapsed
-    if (isLapsed || m.months_since_start) {
-      statusHtml = '<span class="badge-lapsed">LAPSED</span>';
-    } else if (isAtRisk) {
-      statusHtml = '<span class="badge-at-risk">AT RISK</span>';
-    } else {
-      // 2. Check for Commissionable
-      // Rule: installment_month <= 12 -> Commissionable, > 12 -> Non-Commissionable
-      const cPrice = Number(m.contracted_price) || 0;
-      const bal = Number(m.balance) || 0;
-      const mDue = Number(m.monthly_due) || 0;
-      let paid = 0;
-      if (mDue > 0) paid = (cPrice - bal) / mDue;
-
-      if (paid <= 12) {
-        statusHtml = '<span style="color:#0f0; font-weight:bold;">COMMISSIONABLE</span>';
-      } else {
-        statusHtml = '<span style="color:#f90; font-weight:bold;">NON COMMISSIONABLE</span>';
-      }
+    // Ensure months_behind is available
+    let mb = m.months_behind;
+    if (mb == undefined || mb == null) {
+      mb = calculateMonthsBehind(m);
+      m.months_behind = mb;
     }
 
+    // Determine status badge
+    let statusHtml = '';
+
+    if (mb > 3) {
+      statusHtml = '<span class="badge-lapsed">LAPSED</span>';
+    } else if (mb >= 2) {
+      statusHtml = '<span class="badge-at-risk">AT RISK</span>';
+    } else if (mb >= 1) {
+      statusHtml = '<span class="badge-warning">WARNING</span>';
+    } else {
+      // Logic for Active (< 1 month behind)
+      statusHtml = '<span class="badge-active">ACTIVE</span>';
+    }
+
+    // Row Highlighting based on status
     const tr = document.createElement('tr');
-    if (isLapsed) tr.className = 'row-lapsed';
-    if (isAtRisk) tr.className = 'row-at-risk';
+    if (mb > 3) tr.className = 'row-lapsed';
+    else if (mb >= 2) tr.className = 'row-at-risk';
+    else if (mb >= 1) tr.className = 'row-warning';
+    else tr.className = 'row-active';
 
     tr.innerHTML = `
         <td>${esc(m.maf_no)}</td>
@@ -240,7 +256,7 @@ function renderTable() {
         <td>${esc(m.first_name)}</td>
         <td>${esc(m.middle_name)}</td>
         <td>${esc(m.address)}</td>
-        <td>${esc(m.contact_number)}</td>
+        <td>${esc(m.phone_number)}</td>
         <td>${esc(m.religion)}</td>
         <td>${esc(m.birth_date)}</td>
         <td>${esc(m.age)}</td>
@@ -317,6 +333,40 @@ function renderTable() {
   FLOAT_HSCROLL.sync();
 }
 
+/**
+ * Calculates months_behind for a member.
+ * Logic: (MonthsSinceStart) - (InstallmentsPaid)
+ */
+function calculateMonthsBehind(m) {
+  let startDateStr = m.plan_start_date || m.date_joined;
+  let start = startDateStr ? new Date(startDateStr) : new Date();
+  if (isNaN(start.getTime())) start = new Date();
+
+  const now = new Date();
+
+  // Calculate Months Since Start
+  let monthsSince = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  // Adjust if today is before the start day-of-month
+  if (now.getDate() < start.getDate()) {
+    monthsSince--;
+  }
+  if (monthsSince < 0) monthsSince = 0;
+
+  // Calculate Installments Paid
+  const cPrice = Number(m.contracted_price) || 0;
+  const bal = Number(m.balance) || 0;
+  const mDue = Number(m.monthly_due) || 0;
+
+  let paidCount = 0;
+  if (mDue > 0 && cPrice > 0) {
+    const paidAmount = cPrice - bal;
+    paidCount = paidAmount / mDue;
+  }
+
+  let behind = monthsSince - paidCount;
+  return behind;
+}
+
 async function loadAgentsMap() {
   agentsMap.clear();
   try {
@@ -349,7 +399,7 @@ async function loadAllMembers() {
   while (true) {
     const { data: members, error } = await supabase
       .from('members')
-      .select('id, maf_no, last_name, first_name, middle_name, gender, civil_status, address, zipcode, birth_date, birthplace, nationality, age, height, weight, religion, contact_number, monthly_due, plan_type, contracted_price, date_joined, balance, casket_type, membership, occupation, agent_id')
+      .select('id, maf_no, last_name, first_name, middle_name, gender, civil_status, address, zipcode, birth_date, birthplace, nationality, age, height, weight, religion, phone_number, monthly_due, plan_type, contracted_price, date_joined, plan_start_date, balance, casket_type, membership, occupation, agent_id')
       .order('last_name', { ascending: true })
       .order('first_name', { ascending: true })
       .range(from, from + PAGE - 1);
@@ -358,14 +408,53 @@ async function loadAllMembers() {
     const rows = members || [];
     if (!rows.length) break;
 
-    // collect member ids for bene fetch
-    allIds.push(...rows.map(r => r.id));
-    _allMembers.push(...rows);
+    // Process rows to calculate months_behind locally
+    const processed = rows.map(m => {
+      // Logic: (MonthsSinceStart) - (InstallmentsPaid)
+      // InstallmentsPaid = (Contracted - Balance) / MonthlyDue
 
-    total += rows.length;
-    from += rows.length;
+      // Determine Start Date (Plan Start > Date Joined > Now)
+      let startDateStr = m.plan_start_date || m.date_joined;
+      let start = startDateStr ? new Date(startDateStr) : new Date();
+      if (isNaN(start.getTime())) start = new Date(); // Fallback if invalid
+
+      const now = new Date();
+
+      // Calculate Months Since Start
+      let monthsSince = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+      // Adjust if today is before the start day-of-month
+      if (now.getDate() < start.getDate()) {
+        monthsSince--;
+      }
+      if (monthsSince < 0) monthsSince = 0;
+
+      // Calculate Installments Paid
+      const cPrice = Number(m.contracted_price) || 0;
+      const bal = Number(m.balance) || 0;
+      const mDue = Number(m.monthly_due) || 0;
+
+      let paidCount = 0;
+      if (mDue > 0 && cPrice > 0) {
+        // paid amount = contracted - balance
+        const paidAmount = cPrice - bal;
+        paidCount = paidAmount / mDue;
+      }
+
+      // Calculate Months Behind
+      let behind = monthsSince - paidCount;
+      m.months_behind = behind;
+
+      return m;
+    });
+
+    // collect member ids for bene fetch
+    allIds.push(...processed.map(r => r.id));
+    _allMembers.push(...processed);
+
+    total += processed.length;
+    from += processed.length;
     setMsg(`Loaded ${total} member(s)…`);
-    if (rows.length < PAGE) break;
+    if (processed.length < PAGE) break;
   }
 
   await loadAllBeneficiaries(allIds);
@@ -446,9 +535,52 @@ async function loadAtRiskMembers() {
     setMsg(`Loaded ${_allMembers.length} at-risk member(s).`);
   } catch (e) {
     console.error('Error loading AT RISK:', e);
-    setMsg('Error loading AT RISK members: ' + e.message);
   }
 }
+
+async function loadWarningMembers() {
+  setMsg('Loading warning members...');
+  try {
+    const { data, error } = await supabase.rpc('get_warning_members');
+    if (error) throw error;
+
+    _allMembers = data || [];
+
+    const newIds = _allMembers.map(m => m.id);
+    if (newIds.length > 0) {
+      await loadAllBeneficiaries(newIds);
+    }
+
+    _currentPage = 1;
+    renderTable();
+    setMsg(`Loaded ${_allMembers.length} warning member(s).`);
+  } catch (e) {
+    console.error('Error loading WARNING:', e);
+  }
+}
+
+async function loadActiveMembers() {
+  setMsg('Loading active members...');
+  try {
+    const { data, error } = await supabase.rpc('get_active_members');
+    if (error) throw error;
+
+    _allMembers = data || [];
+
+    const newIds = _allMembers.map(m => m.id);
+    if (newIds.length > 0) {
+      await loadAllBeneficiaries(newIds);
+    }
+
+    _currentPage = 1;
+    renderTable();
+    setMsg(`Loaded ${_allMembers.length} active member(s).`);
+  } catch (e) {
+    console.error('Error loading ACTIVE:', e);
+    setMsg('Error loading ACTIVE members: ' + e.message);
+  }
+}
+
 
 /* ===== Floating horizontal "slider" (fixed to viewport) ===== */
 const FLOAT_HSCROLL = (function () {

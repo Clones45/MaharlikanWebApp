@@ -212,7 +212,7 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
     const monthlyDueRaw = member.monthly_due || member.amount;
     setText('amount', formatMoney(monthlyDueRaw));
 
-    setText('dateInception', formatDate(member.date_joined || member.date_of_inception));
+    setText('dateInception', formatDate(member.date_joined));
     setText('dueDate', member.due_date ? member.due_date : '-'); // due date is usually day-of-month only
 
     setText('salesExecutive', member.sales_executive || getAgentName(member.agent_id));
@@ -223,11 +223,12 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
 
     // --- Collections Table ---
     const agentName = member.sales_executive || getAgentName(member.agent_id);
-    populateCollections(collections, totalPayableRaw, agentName, monthlyDueRaw);
+    populateCollections(collections, totalPayableRaw, agentName, monthlyDueRaw, agentMap, member.date_joined);
 
     // --- Footer Signatures ---
-    setText('footerAgent', agentName);
-    setText('footerCollector', agentName); // Default to agent for now as requested
+    // User requested blank names for Manager and Collector
+    // setText('footerAgent', agentName);
+    // setText('footerCollector', agentName);
 }
 
 function renderBeneficiaries(beneficiaries) {
@@ -238,7 +239,7 @@ function renderBeneficiaries(beneficiaries) {
 
     if (!beneficiaries || beneficiaries.length === 0) {
         container.innerHTML = `
-            <tr><td colspan="3" style="text-align:center; color:#999;">No beneficiaries on record</td></tr>
+            <tr><td colspan="4" style="text-align:center; color:#999;">No beneficiaries on record</td></tr>
         `;
         return;
     }
@@ -246,9 +247,13 @@ function renderBeneficiaries(beneficiaries) {
     beneficiaries.forEach((b, i) => {
         const name = `${b.first_name || ''} ${b.middle_name || ''} ${b.last_name || ''}`.replace(/\s+/g, ' ').trim();
         const row = document.createElement('tr');
+        // Format birthdate
+        const bdate = formatDate(b.birth_date);
+
         row.innerHTML = `
             <td>${i + 1}. ${name || '-'}</td>
             <td>${b.relation || '-'}</td>
+            <td>${bdate}</td>
             <td>${b.address || '-'}</td>
         `;
         container.appendChild(row);
@@ -258,7 +263,7 @@ function renderBeneficiaries(beneficiaries) {
 /* ==========================================
    POPULATE COLLECTIONS TABLE
    ========================================== */
-function populateCollections(collections, totalAmount, defaultCollector, monthlyDue) {
+function populateCollections(collections, totalAmount, defaultCollector, monthlyDue, agentMap, dateJoined) {
     const tbody = document.getElementById('collectionsTableBody');
     tbody.innerHTML = '';
 
@@ -272,9 +277,32 @@ function populateCollections(collections, totalAmount, defaultCollector, monthly
     let runningInstallment = 0;
     const monthlyDueVal = Number(monthlyDue) || 0;
 
+    // Track the last payment (or joining) date
+    let lastDate = new Date(dateJoined || new Date());
+
     collections.forEach((col) => {
         const payment = Number(col.payment || col.amount || 0);
         let monthsPaid = 0;
+
+        // --- Check reinstatement (gap >= 3 months) ---
+        const paymentDate = new Date(col.date_paid);
+        let isReinstated = false;
+
+        if (!isNaN(lastDate.getTime()) && !isNaN(paymentDate.getTime())) {
+            // Approx diff in months
+            let monthsDiff = (paymentDate.getFullYear() - lastDate.getFullYear()) * 12;
+            monthsDiff -= lastDate.getMonth();
+            monthsDiff += paymentDate.getMonth();
+
+            // If gap is >= 3 months, mark reinstated
+            if (monthsDiff >= 3) {
+                isReinstated = true;
+            }
+        }
+
+        // Update last date for next iteration
+        lastDate = paymentDate;
+        // ---------------------------------------------
 
         if (!isNaN(payment)) {
             runningBalance -= payment;
@@ -285,13 +313,25 @@ function populateCollections(collections, totalAmount, defaultCollector, monthly
         }
 
         const tr = document.createElement('tr');
+        const collectorName = (col.collector_id && agentMap)
+            ? agentMap.get(col.collector_id)
+            : (defaultCollector || '-');
+
+        // Render Reinstated Note if needed
+        // Render Reinstated Note if needed
+        const reinstatedHtml = isReinstated
+            ? '<span style="color:#059669; font-weight:bold; font-size:11px; margin-right: 5px;">Reinstated</span>'
+            : '';
+
         tr.innerHTML = `
       <td>${formatDate(col.date_paid)}</td>
-      <td style="text-align: right;">${formatMoney(payment)}</td>
+      <td style="text-align: right;">
+        ${reinstatedHtml}${formatMoney(payment)}
+      </td>
       <td>${col.or_no || col.or_number || '-'}</td>
       <td style="text-align: center;">${parseFloat(runningInstallment.toFixed(2))}</td>
       <td style="text-align: right;">${formatMoney(Math.max(0, runningBalance))}</td>
-      <td>${col.collector || defaultCollector || '-'}</td>
+      <td>${collectorName}</td>
     `;
         tbody.appendChild(tr);
     });

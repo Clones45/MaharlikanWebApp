@@ -202,6 +202,18 @@ function wire() {
   const planSel = qs('#planType');
   if (planSel) {
     planSel.addEventListener('change', onPlanChange);
+
+    // ✅ Autocomplete Logic
+    planSel.addEventListener('input', () => showSuggestions(planSel.value));
+    planSel.addEventListener('focus', () => showSuggestions(planSel.value));
+
+    // Hide when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!planSel.contains(e.target) && !qs('#planSuggestions')?.contains(e.target)) {
+        hideSuggestions();
+      }
+    });
+
     // Trigger on load if a plan is already selected
     if (planSel.value) {
       console.log('[wire] Triggering initial plan change for:', planSel.value);
@@ -254,6 +266,46 @@ function onPlanChange() {
   });
 }
 
+
+/* ✅ SUGGESTIONS UI */
+function showSuggestions(query) {
+  const list = qs('#planSuggestions');
+  if (!list) return;
+
+  const q = (query || '').toUpperCase().trim();
+  const keys = Object.keys(PLAN_DATA);
+  const matches = keys.filter(k => k.includes(q));
+
+  if (matches.length === 0) {
+    list.classList.add('hidden');
+    return;
+  }
+
+  list.innerHTML = '';
+  matches.forEach(key => {
+    const div = document.createElement('div');
+    div.className = 'suggestion-item';
+    div.textContent = key;
+    div.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent document click from closing immediately
+      const planSel = qs('#planType');
+      if (planSel) {
+        planSel.value = key;
+        console.log('[Suggestion] Selected:', key);
+        hideSuggestions();
+        onPlanChange(); // Trigger data fill
+      }
+    });
+    list.appendChild(div);
+  });
+
+  list.classList.remove('hidden');
+}
+
+function hideSuggestions() {
+  const list = qs('#planSuggestions');
+  if (list) list.classList.add('hidden');
+}
 
 async function loadAgents() {
   const sel = document.getElementById('agentSelect');
@@ -357,6 +409,8 @@ function gather(form) {
     casket_type: get('casket_type') || null,
     contracted_price: num('contracted_price'),
     monthly_due: num('monthly_due'),
+    balance: num('contracted_price'), // ✅ Initialize balance = contracted_price (nothing paid yet)
+    date_joined: get('date_joined') || new Date().toISOString().split('T')[0], // ✅ Default to today if empty
     agent_id: num('agent_id'),
   };
 
