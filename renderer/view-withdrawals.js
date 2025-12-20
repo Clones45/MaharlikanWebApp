@@ -1,4 +1,4 @@
-let supabase = null;
+let supabaseClient = null;
 
 const container = document.getElementById("requestsTableBody");
 const refreshBtn = document.getElementById("refreshBtn");
@@ -15,7 +15,7 @@ const refreshBtn = document.getElementById("refreshBtn");
     if (window.__ENV__) env = window.__ENV__;
   }
   if (env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY && window.supabase?.createClient) {
-    supabase = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    supabaseClient = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
       auth: {
         persistSession: false,
         autoRefreshToken: true,  // ✅ ENABLE: Auto-refresh tokens
@@ -23,7 +23,7 @@ const refreshBtn = document.getElementById("refreshBtn");
       },
     });
 
-    supabase.auth.onAuthStateChange((event) => {
+    supabaseClient.auth.onAuthStateChange((event) => {
       if (event === 'TOKEN_REFRESHED') console.log('[view-withdrawals] ✅ Token refreshed');
     });
 
@@ -32,7 +32,7 @@ const refreshBtn = document.getElementById("refreshBtn");
     const token = params.get("access_token");
     const refresh = params.get("refresh_token");
     if (token && refresh) {
-      await supabase.auth.setSession({ access_token: token, refresh_token: refresh });
+      await supabaseClient.auth.setSession({ access_token: token, refresh_token: refresh });
     }
 
     loadWithdrawalRequests();
@@ -46,7 +46,7 @@ const refreshBtn = document.getElementById("refreshBtn");
 async function loadWithdrawalRequests() {
   container.innerHTML = `<tr><td colspan="7">Loading...</td></tr>`;
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("withdrawal_requests")
     .select(`
       id,
@@ -106,6 +106,7 @@ function renderRequests(list) {
         : `<em>Processed</em>`
       }
       </td>
+    </tr>
 `;
 
     container.appendChild(row);
@@ -143,7 +144,7 @@ async function updateStatus(id, newStatus) {
   const confirmAction = confirm(`Are you sure you want to ${newStatus.toUpperCase()} this request ? `);
   if (!confirmAction) return;
 
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("withdrawal_requests")
     .update({ status: newStatus })
     .eq("id", id);
@@ -162,7 +163,7 @@ async function updateStatus(id, newStatus) {
 // REALTIME LISTENER
 // ========================
 function subscribeRealtime() {
-  supabase
+  supabaseClient
     .channel("withdrawal-live")
     .on(
       "postgres_changes",

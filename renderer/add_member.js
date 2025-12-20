@@ -1,8 +1,9 @@
 // add_member.js
-let supabase = null, env = null;
+let supabaseClient = null, env = null;
 
 const qs = (s) => document.querySelector(s);
 const qsa = (s) => Array.from(document.querySelectorAll(s));
+const num = (v) => Number(v || 0);
 
 /* ✅ HARD-CODED PLAN DATA (no DB table needed) */
 const PLAN_DATA = {
@@ -91,25 +92,30 @@ async function boot() {
       return;
     }
 
-    // 🛑 CRITICAL: Use dummy storage to prevent clearing main window's localStorage
-    const dummyStorage = {
-      getItem: () => null,
-      setItem: () => { },
-      removeItem: () => { },
-    };
+    // 🛑 CRITICAL: Use memory storage to prevent clearing main window's localStorage
+    // while still allowing auto-refresh to work within this window's lifecycle.
+    const memoryStorage = (() => {
+      let store = {};
+      return {
+        getItem: (key) => store[key] || null,
+        setItem: (key, value) => { store[key] = value; },
+        removeItem: (key) => { delete store[key]; },
+        clear: () => { store = {}; }
+      };
+    })();
 
     // 3) Create client + check session
-    supabase = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    supabaseClient = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
       auth: {
         persistSession: false,       // ✅ Don't duplicate storage (main window handles this)
         autoRefreshToken: true,      // ✅ ENABLE: Auto-refresh tokens before expiry
         detectSessionInUrl: false,
-        storage: dummyStorage        // ✅ ISOLATE from localStorage
+        storage: memoryStorage        // ✅ ISOLATE from localStorage but allow internal refresh
       },
     });
 
     // ✅ Listen for auth state changes (especially token refresh)
-    supabase.auth.onAuthStateChange((event, session) => {
+    supabaseClient.auth.onAuthStateChange((event, session) => {
       console.log('[add_member Auth] State changed:', event);
 
       if (event === 'TOKEN_REFRESHED') {
@@ -131,7 +137,7 @@ async function boot() {
     let session = null;
 
     if (token && refresh) {
-      const { data, error } = await supabase.auth.setSession({
+      const { data, error } = await supabaseClient.auth.setSession({
         access_token: token,
         refresh_token: refresh,
       });
@@ -139,7 +145,7 @@ async function boot() {
       session = data.session;
     } else {
       // Fallback: try getSession (will likely fail if no persistence, but safe)
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabaseClient.auth.getSession();
       session = data.session;
     }
 
@@ -157,7 +163,7 @@ async function boot() {
 
     // 6) Preselect agent based on the logged-in user’s profile (if mapped)
     try {
-      const { data: prof } = await supabase
+      const { data: prof } = await supabaseClient
         .from('users_profile')
         .select('agent_id')
         .eq('user_id', session.user.id)
@@ -220,6 +226,23 @@ function wire() {
       onPlanChange();
     }
   }
+
+  qs('#paymentFrequency')?.addEventListener('change', updatePeriodicDue);
+}
+
+function updatePeriodicDue() {
+  const freq = qs('#paymentFrequency')?.value || 'Monthly';
+  const monthly = num(qs('#monthlyDue')?.value);
+  let factor = 1;
+  if (freq === 'Quarterly') factor = 3;
+  else if (freq === 'Bi-annually') factor = 6;
+  else if (freq === 'Annually') factor = 12;
+
+  const total = monthly * factor;
+  const label = qs('label[for="monthlyDue"]') || qs('#monthlyDue')?.previousElementSibling;
+  if (label) {
+    label.innerHTML = `Monthly Due <span style="font-size:10px; color:var(--neon-accent)">(${freq}: ${total.toLocaleString()})</span>`;
+  }
 }
 
 
@@ -264,6 +287,8 @@ function onPlanChange() {
     price: priceInput?.value,
     monthly: monthlyInput?.value
   });
+
+  updatePeriodicDue();
 }
 
 
@@ -319,7 +344,7 @@ async function loadAgents() {
 
   try {
     console.log('[loadAgents] Querying agents table...');
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('agents')
       .select('id, firstname, lastname')
       .order('lastname', { ascending: true });
@@ -409,6 +434,7 @@ function gather(form) {
     casket_type: get('casket_type') || null,
     contracted_price: num('contracted_price'),
     monthly_due: num('monthly_due'),
+    payment_frequency: get('payment_frequency') || 'Monthly',
     balance: num('contracted_price'), // ✅ Initialize balance = contracted_price (nothing paid yet)
     date_joined: get('date_joined') || new Date().toISOString().split('T')[0], // ✅ Default to today if empty
     agent_id: num('agent_id'),
@@ -461,7 +487,7 @@ function validate(payload) {
 
   const requiredKeys = [
     'maf_no', 'last_name', 'first_name', 'birth_date', 'age',
-    'membership', 'plan_type', 'casket_type', 'contracted_price', 'monthly_due',
+    'membership', 'payment_frequency', 'plan_type', 'casket_type', 'contracted_price', 'monthly_due',
     'agent_id'
   ];
 
@@ -535,7 +561,7 @@ async function onSave(e) {
       return;
     }
 
-    const { data: member, error: mErr } = await supabase
+    const { data: member, error: mErr } = await supabaseClient
       .from('members')
       .insert(payload)
       .select('id')
@@ -547,7 +573,7 @@ async function onSave(e) {
 
     if (benes.length) {
       const rows = benes.map(b => ({ ...b, member_id: member.id }));
-      const { error: bErr } = await supabase.from('beneficiaries').insert(rows);
+      const { error: bErr } = await supabaseClient.from('beneficiaries').insert(rows);
       if (bErr) {
         console.error('[onSave] Beneficiary insert failed:', bErr);
         throw bErr;

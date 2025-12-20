@@ -337,6 +337,7 @@ async function onUpdate() {
       "birth_date",
       "age",
       "monthly_due",
+      "payment_frequency",
       "plan_type",
       "contracted_price",
       "date_joined",
@@ -509,6 +510,27 @@ async function onDelete() {
         if (m < 0 || (m === 0 && today.getDate() < d.getDate())) a--;
         age.value = a >= 0 ? a : "";
       });
+    }
+
+    // Periodic Due Logic
+    const freqEl = document.getElementById("payment_frequency");
+    const dueEl = document.getElementById("monthly_due");
+    if (freqEl && dueEl) {
+      const updatePeriodic = () => {
+        const freq = freqEl.value || 'Monthly';
+        const monthly = parseFloat(dueEl.value || 0);
+        let factor = 1;
+        if (freq === 'Quarterly') factor = 3;
+        else if (freq === 'Bi-annually') factor = 6;
+        else if (freq === 'Annually') factor = 12;
+        const total = monthly * factor;
+        const label = dueEl.previousElementSibling;
+        if (label) {
+          label.innerHTML = `Monthly Due <span style="font-size:10px; color:var(--neon-accent)">(${freq}: ${total.toLocaleString()})</span>`;
+        }
+      };
+      freqEl.addEventListener("change", updatePeriodic);
+      dueEl.addEventListener("input", updatePeriodic);
     }
   } catch (e) {
     console.error("Init error:", e);

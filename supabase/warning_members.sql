@@ -32,7 +32,7 @@ RETURNS TABLE (
     created_at timestamptz,
     plan_start_date date,
     phone_number text,
-    months_paid bigint,
+    months_paid numeric,
     months_since_start double precision,
     months_behind double precision
 )
@@ -70,7 +70,7 @@ AS $$
       m.phone_number,
 
       -- months paid
-      COUNT(c.id) AS months_paid,
+      COALESCE(SUM(c.payment) FILTER (WHERE c.payment_for IN ('regular', 'membership')), 0) / NULLIF(m.monthly_due, 0) AS months_paid,
 
       -- months since start
       (
@@ -82,7 +82,7 @@ AS $$
         (
           DATE_PART('year', AGE(CURRENT_DATE, m.plan_start_date)) * 12 +
           DATE_PART('month', AGE(CURRENT_DATE, m.plan_start_date))
-        ) - COUNT(c.id)
+        ) - (COALESCE(SUM(c.payment) FILTER (WHERE c.payment_for IN ('regular', 'membership')), 0) / NULLIF(m.monthly_due, 0))
       ) AS months_behind
 
   FROM members m
@@ -96,14 +96,14 @@ AS $$
         (
           DATE_PART('year', AGE(CURRENT_DATE, m.plan_start_date)) * 12 +
           DATE_PART('month', AGE(CURRENT_DATE, m.plan_start_date))
-        ) - COUNT(c.id)
+        ) - (COALESCE(SUM(c.payment) FILTER (WHERE c.payment_for IN ('regular', 'membership')), 0) / NULLIF(m.monthly_due, 0))
       ) >= 1
       AND
       (
         (
           DATE_PART('year', AGE(CURRENT_DATE, m.plan_start_date)) * 12 +
           DATE_PART('month', AGE(CURRENT_DATE, m.plan_start_date))
-        ) - COUNT(c.id)
+        ) - (COALESCE(SUM(c.payment) FILTER (WHERE c.payment_for IN ('regular', 'membership')), 0) / NULLIF(m.monthly_due, 0))
       ) < 2
   ORDER BY m.last_name ASC, m.first_name ASC;
 $$;

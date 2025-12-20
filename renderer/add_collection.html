@@ -240,9 +240,10 @@
       <h1 class="title">Add Collection</h1>
 
       <div class="tip">
-        💡 <b>Tip:</b> Choose <b>Payment For</b>. If you select <b>Membership Fee</b>, the Amount will auto-set:<br>
-        • <i>Deduct checked</i> → ₱350 (agent takes ₱150 outright now)<br>
-        • <i>Deduct unchecked</i> → ₱500 (₱150 added to agent’s monthly commission)
+        💡 <b>Tip:</b> Choose <b>Payment For</b>. If you select <b>Membership Fee</b>, the Amount will auto-set to
+        <b>₱500.00</b>:<br>
+        • <i>Deduct checked</i> → Agent takes ₱150 outright now (Gross ₱500 is still recorded).<br>
+        • <i>Deduct unchecked</i> → Full ₱500 is collected (₱150 added to agent’s monthly commission).
       </div>
 
       <form id="collectForm" autocomplete="off">
@@ -341,13 +342,13 @@
 
         if (isMembership) {
           commissionChecks.style.display = 'none';
-          const val = deduct.checked ? 350 : 500;
-          amount.value = val.toFixed ? val.toFixed(2) : String(val);
+          const val = 500;
+          amount.value = val.toFixed(2);
           amount.readOnly = true;
           amountNote.style.display = 'block';
           amountNote.textContent = deduct.checked
-            ? 'Membership (Deduct): ₱350 — agent takes ₱150 outright now.'
-            : 'Membership (No Deduct): ₱500 — ₱150 will be added to monthly commission.';
+            ? 'Membership (Deduct): ₱500 recorded — agent keeps ₱150 outright.'
+            : 'Membership (No Deduct): ₱500 recorded — ₱150 added to monthly commission.';
         } else {
           amount.readOnly = false;
           amountNote.style.display = 'none';

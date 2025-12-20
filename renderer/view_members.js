@@ -1,4 +1,4 @@
-let supabase = null, env = null;
+let supabaseClient = null, env = null;
 
 const qs = (s) => document.querySelector(s);
 const qsa = (s) => Array.from(document.querySelectorAll(s));
@@ -27,19 +27,24 @@ async function boot() {
     if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) { setMsg('Missing Supabase env.'); return; }
     if (!window.supabase?.createClient) { setMsg('Supabase SDK missing.'); return; }
 
-    // 🛑 CRITICAL: Use dummy storage to prevent clearing main window's localStorage
-    const dummyStorage = {
-      getItem: () => null,
-      setItem: () => { },
-      removeItem: () => { },
-    };
+    // 🛑 CRITICAL: Use memory storage to prevent clearing main window's localStorage
+    // while still allowing auto-refresh to work within this window's lifecycle.
+    const memoryStorage = (() => {
+      let store = {};
+      return {
+        getItem: (key) => store[key] || null,
+        setItem: (key, value) => { store[key] = value; },
+        removeItem: (key) => { delete store[key]; },
+        clear: () => { store = {}; }
+      };
+    })();
 
-    supabase = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    supabaseClient = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
       auth: {
         persistSession: false,
         autoRefreshToken: true,
         detectSessionInUrl: false,
-        storage: dummyStorage
+        storage: memoryStorage
       },
     });
 
@@ -370,7 +375,7 @@ function calculateMonthsBehind(m) {
 async function loadAgentsMap() {
   agentsMap.clear();
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('agents')
       .select('id, lastname, firstname')
       .order('lastname', { ascending: true });
@@ -397,7 +402,7 @@ async function loadAllMembers() {
   let from = 0, total = 0, allIds = [];
 
   while (true) {
-    const { data: members, error } = await supabase
+    const { data: members, error } = await supabaseClient
       .from('members')
       .select('id, maf_no, last_name, first_name, middle_name, gender, civil_status, address, zipcode, birth_date, birthplace, nationality, age, height, weight, religion, phone_number, monthly_due, plan_type, contracted_price, date_joined, plan_start_date, balance, casket_type, membership, occupation, agent_id')
       .order('last_name', { ascending: true })
@@ -474,7 +479,7 @@ async function loadAllBeneficiaries(ids) {
   const pageSize = 2000; // efficient in chunks
   for (let i = 0; i < ids.length; i += pageSize) {
     const slice = ids.slice(i, i + pageSize);
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('beneficiaries')
       .select('member_id, relation, last_name, first_name, middle_name, birth_date, age, address')
       .in('member_id', slice)
@@ -490,7 +495,7 @@ async function loadAllBeneficiaries(ids) {
 async function loadLapsedMembers() {
   setMsg('Loading lapsed members...');
   try {
-    const { data, error } = await supabase.rpc('get_lapsed_members');
+    const { data, error } = await supabaseClient.rpc('get_lapsed_members');
     if (error) throw error;
 
     _allMembers = data || [];
@@ -520,7 +525,7 @@ async function loadLapsedMembers() {
 async function loadAtRiskMembers() {
   setMsg('Loading at-risk members...');
   try {
-    const { data, error } = await supabase.rpc('get_at_risk_members');
+    const { data, error } = await supabaseClient.rpc('get_at_risk_members');
     if (error) throw error;
 
     _allMembers = data || [];
@@ -541,7 +546,7 @@ async function loadAtRiskMembers() {
 async function loadWarningMembers() {
   setMsg('Loading warning members...');
   try {
-    const { data, error } = await supabase.rpc('get_warning_members');
+    const { data, error } = await supabaseClient.rpc('get_warning_members');
     if (error) throw error;
 
     _allMembers = data || [];
@@ -562,7 +567,7 @@ async function loadWarningMembers() {
 async function loadActiveMembers() {
   setMsg('Loading active members...');
   try {
-    const { data, error } = await supabase.rpc('get_active_members');
+    const { data, error } = await supabaseClient.rpc('get_active_members');
     if (error) throw error;
 
     _allMembers = data || [];

@@ -2,7 +2,7 @@
  * MAHARLIKAN ACCESS CODES SYSTEM
  ************************************/
 
-let supabase = null;
+let supabaseClient = null;
 
 // DOM elements
 const codePrefixEl = document.getElementById("codePrefix");
@@ -49,7 +49,7 @@ window.generateCode = async function () {
   const code = generateAccessCode(prefix);
   const expiresAt = getNextCutoffDate().toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("access_codes")
     .insert({
       code,
@@ -84,7 +84,7 @@ window.generateCode = async function () {
 // ===========================
 window.loadAccessCodes = async function () {
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("access_codes")
     .select("*")
     .order("created_at", { ascending: false });
@@ -154,23 +154,28 @@ window.copyCode = function (code) {
     if (window.__ENV__) env = window.__ENV__;
   }
   if (env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY && window.supabase?.createClient) {
-    // 🛑 CRITICAL: Use dummy storage to prevent clearing main window's localStorage
-    const dummyStorage = {
-      getItem: () => null,
-      setItem: () => { },
-      removeItem: () => { },
-    };
+    // 🛑 CRITICAL: Use memory storage to prevent clearing main window's localStorage
+    // while still allowing auto-refresh to work within this window's lifecycle.
+    const memoryStorage = (() => {
+      let store = {};
+      return {
+        getItem: (key) => store[key] || null,
+        setItem: (key, value) => { store[key] = value; },
+        removeItem: (key) => { delete store[key]; },
+        clear: () => { store = {}; }
+      };
+    })();
 
-    supabase = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    supabaseClient = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
       auth: {
         persistSession: false,
         autoRefreshToken: true,  // ✅ ENABLE: Auto-refresh tokens
         detectSessionInUrl: false,
-        storage: dummyStorage    // ✅ ISOLATE from localStorage
+        storage: memoryStorage    // ✅ ISOLATE from localStorage but allow internal refresh
       },
     });
 
-    supabase.auth.onAuthStateChange((event) => {
+    supabaseClient.auth.onAuthStateChange((event) => {
       if (event === 'TOKEN_REFRESHED') console.log('[access_codes] ✅ Token refreshed');
     });
 
@@ -179,10 +184,10 @@ window.copyCode = function (code) {
     const token = params.get("access_token");
     const refresh = params.get("refresh_token");
     if (token && refresh) {
-      await supabase.auth.setSession({ access_token: token, refresh_token: refresh });
+      await supabaseClient.auth.setSession({ access_token: token, refresh_token: refresh });
     }
 
-    window.SB = supabase;
+    window.SB = supabaseClient;
     loadAccessCodes();
   }
 })();

@@ -404,19 +404,24 @@ window.addEventListener("DOMContentLoaded", async () => {
       ADMIN_SECRET = env.ADMIN_PORTAL_SECRET;
     }
 
-    // 🛑 CRITICAL: Use dummy storage to prevent clearing main window's localStorage
-    const dummyStorage = {
-      getItem: () => null,
-      setItem: () => { },
-      removeItem: () => { },
-    };
+    // 🛑 CRITICAL: Use memory storage to prevent clearing main window's localStorage
+    // while still allowing auto-refresh to work within this window's lifecycle.
+    const memoryStorage = (() => {
+      let store = {};
+      return {
+        getItem: (key) => store[key] || null,
+        setItem: (key, value) => { store[key] = value; },
+        removeItem: (key) => { delete store[key]; },
+        clear: () => { store = {}; }
+      };
+    })();
 
     window.SB = window.supabase.createClient(sbUrl, sbKey, {
       auth: {
         persistSession: false,      // Don't duplicate storage
         autoRefreshToken: true,     // ✅ ENABLE: Auto-refresh tokens
         detectSessionInUrl: false,
-        storage: dummyStorage       // ✅ ISOLATE from localStorage
+        storage: memoryStorage       // ✅ ISOLATE from localStorage but allow internal refresh
       },
     });
 

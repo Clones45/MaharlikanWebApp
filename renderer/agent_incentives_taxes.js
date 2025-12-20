@@ -1,6 +1,8 @@
 // =======================================================
 // agent_incentives_taxes.js
 // Logic for displaying Agent Incentives and Taxes/Deductions
+// SOURCE OF TRUTH: Pure Date-Range Aggregation (Ledger Roll-up)
+// Any future changes to reporting logic must preserve date-range aggregation as the single source of truth.
 // =======================================================
 
 /* ===== DOM Selectors ===== */
@@ -9,16 +11,19 @@ const SELECTORS = {
     monthSel: qs('monthSel'),
     yearSel: qs('yearSel'),
     agentSel: qs('agentSel'),
+    freqSel: qs('freqSel'),
     applyBtn: qs('applyBtn'),
     printBtn: qs('printBtn'),
     periodLabel: qs('periodLabel'),
 
     // Summaries
-    sumIncentives: qs('sumIncentives'),
+    sumCollections: qs('sumCollections'),
     sumTax: qs('sumTax'),
     sumFees: qs('sumFees'),
     sumRice: qs('sumRice'),
     sumOffice: qs('sumOffice'),
+    sumIncentivesSub: qs('sumIncentivesSub'),
+    sumCommissionTotal: qs('sumCommissionTotal'),
 
     // Counters
     cntIncentives: qs('cntIncentives'),
@@ -32,9 +37,8 @@ const SELECTORS = {
     bdOverrides: qs('bdOverrides'),
     bdTravel: qs('bdTravel'),
     bdRecruiter: qs('bdRecruiter'),
-    bdTotal: qs('bdTotal'),
-    clReceivable: qs('clReceivable'),
-    clNonReceivable: qs('clNonReceivable'),
+    bdNonForfeited: qs('bdNonForfeited'),
+    bdForfeited: qs('bdForfeited'),
 
     // TBodies
     tbodyIncentives: qs('tblIncentives').querySelector('tbody'),
@@ -44,7 +48,7 @@ const SELECTORS = {
 };
 
 /* ===== Config & State ===== */
-let supabase = null;
+let supabaseClient = null;
 const PESO = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 
 /* ===== Utils ===== */
@@ -76,11 +80,19 @@ async function boot() {
             if (window.__ENV__) env = window.__ENV__;
         }
 
-        const dummyStorage = { getItem: () => null, setItem: () => { }, removeItem: () => { } };
+        const memoryStorage = (() => {
+            let store = {};
+            return {
+                getItem: (key) => store[key] || null,
+                setItem: (key, value) => { store[key] = value; },
+                removeItem: (key) => { delete store[key]; },
+                clear: () => { store = {}; }
+            };
+        })();
 
         if (env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY && window.supabase?.createClient) {
-            supabase = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-                auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false, storage: dummyStorage }
+            supabaseClient = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+                auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false, storage: memoryStorage }
             });
         } else {
             console.error('Supabase not configured');
@@ -133,24 +145,23 @@ function wireEvents() {
     SELECTORS.monthSel.addEventListener('change', loadAndRender);
     SELECTORS.yearSel.addEventListener('change', loadAndRender);
     SELECTORS.agentSel.addEventListener('change', loadAndRender);
+    SELECTORS.freqSel.addEventListener('change', loadAndRender);
 }
 
 /* ===== Date Logic ===== */
-function getExampleCutoff(y, m) {
-    // Using same logic as view_commissions.js (7th to 7th)
-    const Y = num(y);
-    const M = num(m);
+function getAggregationPeriod(y, m, accumulationMonths = 1) {
+    // Always starts from the 7th of the selected month
+    const start = new Date(num(y), num(m) - 1, 7);
+    // End is Start + N months
+    const end = new Date(num(y), num(m) - 1 + num(accumulationMonths), 7);
 
     const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const start = new Date(Y, M - 1, 7);
-    const end = new Date(Y, M, 7);
-
     return { gte: fmt(start), lt: fmt(end), start, end };
 }
 
 /* ===== Data Loading ===== */
 async function loadAgents() {
-    const { data, error } = await supabase.from('agents').select('id, firstname, lastname').order('lastname');
+    const { data, error } = await supabaseClient.from('agents').select('id, firstname, lastname').order('lastname');
     if (!error && data) {
         data.forEach(a => {
             const opt = document.createElement('option');
@@ -166,9 +177,10 @@ async function loadAndRender() {
         const y = SELECTORS.yearSel.value;
         const m = SELECTORS.monthSel.value;
         const agentId = SELECTORS.agentSel.value;
+        const accMonths = SELECTORS.freqSel.value;
 
         // Update Label
-        const { gte, lt, start, end } = getExampleCutoff(y, m);
+        const { gte, lt, start, end } = getAggregationPeriod(y, m, accMonths);
         const nice = d => d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
         const endDisplay = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1);
         SELECTORS.periodLabel.textContent = `${nice(start)} – ${nice(endDisplay)}`;
@@ -179,13 +191,12 @@ async function loadAndRender() {
         SELECTORS.tbodyRice.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
 
         // --- 1. Fetch Incentives (Commissions) ---
-        let qInc = supabase
+        let qInc = supabaseClient
             .from('commissions')
             .select(`
-        created_at, date_earned, amount, commission_type, is_receivable, override_commission,
+        created_at, date_earned, amount, commission_type, is_receivable, override_commission, status,
         agent:agents!commissions_agent_id_fkey(firstname, lastname)
       `)
-            // Removed filter to fetch ALL types for Grand Total
             .gte('date_earned', gte)
             .lt('date_earned', lt)
             .order('date_earned', { ascending: false });
@@ -193,7 +204,8 @@ async function loadAndRender() {
         if (agentId !== 'all') qInc = qInc.eq('agent_id', agentId);
 
         // --- 2. Fetch Taxes (Withdrawals) ---
-        let qTax = supabase
+        // Sum everything requested within the gte-lt window
+        let qTax = supabaseClient
             .from('withdrawal_requests')
             .select(`
         created_at, period_month, period_year, status,
@@ -201,14 +213,13 @@ async function loadAndRender() {
         agent:agents(firstname, lastname)
       `)
             .eq('status', 'approved')
-            .eq('period_month', Number(m))
-            .eq('period_year', Number(y));
+            .gte('created_at', gte)
+            .lt('created_at', lt);
 
         if (agentId !== 'all') qTax = qTax.eq('agent_id', agentId);
 
         // --- 3. Fetch Rice Incentives (New Memberships) ---
-        // Rule: 1 Membership collected in period = 1kg Rice
-        let qRice = supabase
+        let qRice = supabaseClient
             .from('collections')
             .select(`
                 date_paid, or_no, payment, is_membership_fee, agent_id, member_id,
@@ -223,9 +234,7 @@ async function loadAndRender() {
         if (agentId !== 'all') qRice = qRice.eq('agent_id', agentId);
 
         // --- 4. Fetch Office Allocated Expense (First Monthly Payment) ---
-        // Rule: Monthly Due Payment for plan A1, A2, B1, B2. 
-        // Must be the *very first* monthly payment for that member.
-        let qOffice = supabase
+        let qOffice = supabaseClient
             .from('collections')
             .select(`
                 date_paid, payment, is_membership_fee, plan_type, member_id, 
@@ -239,21 +248,45 @@ async function loadAndRender() {
 
         if (agentId !== 'all') qOffice = qOffice.eq('agent_id', agentId);
 
+        // --- 5. Fetch Total Collections for Period ---
+        let qColTotal = supabaseClient
+            .from('collections')
+            .select('payment');
 
-        const [resInc, resTax, resRice, resOffice] = await Promise.all([qInc, qTax, qRice, qOffice]);
+        qColTotal = qColTotal.gte('date_paid', gte).lt('date_paid', lt);
+        if (agentId !== 'all') qColTotal = qColTotal.eq('agent_id', agentId);
+
+        const [resInc, resTax, resRice, resOffice, resColTotal] = await Promise.all([
+            qInc, qTax, qRice, qOffice, qColTotal
+        ]);
 
         if (resInc.error) throw resInc.error;
         if (resTax.error) throw resTax.error;
         if (resRice.error) throw resRice.error;
         if (resOffice.error) throw resOffice.error;
+        if (resColTotal.error) throw resColTotal.error;
 
-        // Process Office Expense Candidates (Verify First Payment)
+        // Process Office Expense Candidates
         const officeItems = await processOfficeExpenses(resOffice.data || [], gte);
 
-        // Calculate Breakdown Rollup
-        const rollup = calculateRollup(resInc.data || []);
+        // Calculate Collection Total
+        const totalCollections = (resColTotal.data || []).reduce((sum, c) => sum + num(c.payment), 0);
+        if (SELECTORS.sumCollections) SELECTORS.sumCollections.textContent = peso(totalCollections);
 
-        renderBreakdown(rollup);
+        // Calculate Breakdown Rollup
+        const isCutoffPassed = new Date() >= new Date(lt);
+        const rollup = calculateRollup(resInc.data || [], isCutoffPassed);
+
+        // Combined Incentives (Recruiter + Office)
+        const officeVal = officeItems.length * 50.00;
+        const totalIncentives = num(rollup.recruiter) + officeVal;
+        if (SELECTORS.sumIncentivesSub) SELECTORS.sumIncentivesSub.textContent = peso(totalIncentives);
+
+        // Commission Only
+        const commissionOnlyTotal = num(rollup.monthly) + num(rollup.travel) + num(rollup.overrides) + num(rollup.outright);
+        if (SELECTORS.sumCommissionTotal) SELECTORS.sumCommissionTotal.textContent = peso(commissionOnlyTotal);
+
+        renderBreakdown(rollup, isCutoffPassed);
         renderIncentives(resInc.data || []);
         renderTaxes(resTax.data || []);
         renderRice(resRice.data || []);
@@ -276,7 +309,7 @@ async function processOfficeExpenses(candidates, periodStart) {
     const memberIds = [...new Set(candidates.map(c => c.member_id))];
 
     // Bulk check history
-    const { data: history, error } = await supabase
+    const { data: history, error } = await supabaseClient
         .from('collections')
         .select('member_id')
         .in('member_id', memberIds)
@@ -321,8 +354,8 @@ function renderIncentives(list) {
 
     if (list.length === 0) {
         renderEmpty(tbody, 'No incentives found for this period');
-        SELECTORS.sumIncentives.textContent = peso(0);
-        SELECTORS.cntIncentives.textContent = '0 items';
+        if (SELECTORS.sumIncentivesSub) SELECTORS.sumIncentivesSub.textContent = peso(0);
+        if (SELECTORS.cntIncentives) SELECTORS.cntIncentives.textContent = '0 items';
         return;
     }
 
@@ -353,8 +386,8 @@ function renderIncentives(list) {
         tbody.appendChild(tr);
     });
 
-    SELECTORS.sumIncentives.textContent = peso(total);
-    SELECTORS.cntIncentives.textContent = `${list.length} items`;
+    if (SELECTORS.sumCommissionTotal) SELECTORS.sumCommissionTotal.textContent = peso(total);
+    if (SELECTORS.cntIncentives) SELECTORS.cntIncentives.textContent = `${list.length} items`;
 }
 
 function renderTaxes(list) {
@@ -366,9 +399,9 @@ function renderTaxes(list) {
 
     if (list.length === 0) {
         renderEmpty(tbody, 'No approved withdrawals for this period');
-        SELECTORS.sumTax.textContent = peso(0);
-        SELECTORS.sumFees.textContent = peso(0);
-        SELECTORS.cntTaxes.textContent = '0 items';
+        if (SELECTORS.sumTax) SELECTORS.sumTax.textContent = peso(0);
+        if (SELECTORS.sumFees) SELECTORS.sumFees.textContent = peso(0);
+        if (SELECTORS.cntTaxes) SELECTORS.cntTaxes.textContent = '0 items';
         return;
     }
 
@@ -389,9 +422,9 @@ function renderTaxes(list) {
         tbody.appendChild(tr);
     });
 
-    SELECTORS.sumTax.textContent = peso(totalTax);
-    SELECTORS.sumFees.textContent = peso(totalFee);
-    SELECTORS.cntTaxes.textContent = `${list.length} items`;
+    if (SELECTORS.sumTax) SELECTORS.sumTax.textContent = peso(totalTax);
+    if (SELECTORS.sumFees) SELECTORS.sumFees.textContent = peso(totalFee);
+    if (SELECTORS.cntTaxes) SELECTORS.cntTaxes.textContent = `${list.length} items`;
 }
 
 function renderRice(list) {
@@ -400,8 +433,8 @@ function renderRice(list) {
 
     if (list.length === 0) {
         renderEmpty(tbody, 'No memberships collected in this period');
-        SELECTORS.sumRice.textContent = '0 kg';
-        SELECTORS.cntRice.textContent = '0 items';
+        if (SELECTORS.sumRice) SELECTORS.sumRice.textContent = '0 kg';
+        if (SELECTORS.cntRice) SELECTORS.cntRice.textContent = '0 items';
         return;
     }
 
@@ -421,8 +454,8 @@ function renderRice(list) {
     });
 
     const totalKilos = list.length; // 1 member = 1 kg
-    SELECTORS.sumRice.textContent = `${totalKilos} kg`;
-    SELECTORS.cntRice.textContent = `${list.length} items`;
+    if (SELECTORS.sumRice) SELECTORS.sumRice.textContent = `${totalKilos} kg`;
+    if (SELECTORS.cntRice) SELECTORS.cntRice.textContent = `${list.length} items`;
 }
 
 function renderOffice(list) {
@@ -431,8 +464,8 @@ function renderOffice(list) {
 
     if (list.length === 0) {
         renderEmpty(tbody, 'No first-time monthly payments in period');
-        SELECTORS.sumOffice.textContent = peso(0);
-        SELECTORS.cntOffice.textContent = '0 items';
+        if (SELECTORS.sumOffice) SELECTORS.sumOffice.textContent = peso(0);
+        if (SELECTORS.cntOffice) SELECTORS.cntOffice.textContent = '0 items';
         return;
     }
 
@@ -455,20 +488,20 @@ function renderOffice(list) {
         tbody.appendChild(tr);
     });
 
-    SELECTORS.sumOffice.textContent = peso(totalVal);
-    SELECTORS.cntOffice.textContent = `${list.length} items`;
+    if (SELECTORS.sumOffice) SELECTORS.sumOffice.textContent = peso(totalVal);
+    if (SELECTORS.cntOffice) SELECTORS.cntOffice.textContent = `${list.length} items`;
 }
 
 /* ===== Breakdown Logic (Synced with view_commissions.js) ===== */
-function calculateRollup(list) {
+function calculateRollup(list, isCutoffPassed) {
     const rollup = {
         monthly: 0,
         travel: 0,
         overrides: 0,
         recruiter: 0,
         outright: 0,
-        receivable: 0,
-        nonReceivable: 0,
+        forfeited: 0,
+        nonForfeited: 0,
         total: 0
     };
 
@@ -477,73 +510,65 @@ function calculateRollup(list) {
         const amount = num(row.amount);
         const overrideAmount = num(row.override_commission);
         const isReceivable = (row.is_receivable === true);
+        const status = (row.status || 'pending').toLowerCase();
 
-        // RULE 5: OVERRIDES
+        // VAL: Use override if present
+        let val = amount;
         if (type === 'override') {
-            const val = (overrideAmount !== 0) ? overrideAmount : amount;
-            rollup.overrides += val;
-            rollup.receivable += val; // Always Receivable
-            rollup.total += val; // Add to Total!
-            return;
+            val = (overrideAmount !== 0) ? overrideAmount : amount;
         }
 
-        // RULE 6: RECRUITER BONUS
-        if (type === 'recruiter_bonus') {
-            rollup.recruiter += amount;
-            rollup.receivable += amount; // Always Receivable
-            rollup.total += amount;
-            return;
-        }
+        // 1. Classification by Type (Category)
+        const isIncentiveType = (type === 'recruiter_bonus');
 
-        // RULE 3: MONTHLY COMMISSION
-        if (type === 'plan_monthly') {
-            rollup.monthly += amount;
-            rollup.total += amount;
-            if (isReceivable) rollup.receivable += amount;
-            else rollup.nonReceivable += amount;
-            return;
-        }
+        if (type === 'override') rollup.overrides += val;
+        else if (type === 'recruiter_bonus') rollup.recruiter += val;
+        else if (type === 'plan_monthly') rollup.monthly += val;
+        else if (type === 'travel_allowance') rollup.travel += val;
+        else if (type === 'membership_outright') rollup.outright += val;
 
-        // RULE 4: TRAVEL ALLOWANCE
-        if (type === 'travel_allowance') {
-            rollup.travel += amount;
-            rollup.total += amount;
-            if (isReceivable) rollup.receivable += amount;
-            else rollup.nonReceivable += amount;
-            return;
-        }
+        rollup.total += val;
 
-        // RULE 7: OUTRIGHT (Membership)
-        if (type === 'membership_outright') {
-            rollup.outright += amount;
-            rollup.total += amount;
-            if (isReceivable) rollup.receivable += amount;
-            else rollup.nonReceivable += amount;
-            return;
-        }
+        // 2. Classification by Status (Forfeited vs Non-forfeited)
+        // Only classify non-incentive commissions for the forfeited/non-forfeited split?
+        // Or all? User said "the forfieted are those recievable commission that still on pending after the cutoff".
+        // Recruiter bonus is also in commissions table, so let's include it in the status split.
+        const isApproved = (status === 'paid' || status === 'approved' || status === 'deducted');
+        const isPendingReceivable = (isReceivable && !isApproved);
 
-        // Fallback
-        if (isReceivable) rollup.receivable += amount;
-        else rollup.nonReceivable += amount;
-        rollup.total += amount;
+        if (isPendingReceivable && isCutoffPassed) {
+            rollup.forfeited += val;
+        } else {
+            rollup.nonForfeited += val;
+        }
     });
 
     return rollup;
 }
 
-function renderBreakdown(r) {
+function renderBreakdown(r, isCutoffPassed) {
+    const commissionOnlyTotal = num(r.monthly) + num(r.travel) + num(r.overrides) + num(r.outright);
+
     SELECTORS.bdOutright.textContent = peso(r.outright);
     SELECTORS.bdMonthly.textContent = peso(r.monthly);
     SELECTORS.bdOverrides.textContent = peso(r.overrides);
     SELECTORS.bdTravel.textContent = peso(r.travel);
     SELECTORS.bdRecruiter.textContent = peso(r.recruiter);
-    SELECTORS.bdTotal.textContent = peso(r.total);
 
-    SELECTORS.clReceivable.textContent = peso(r.receivable);
-    SELECTORS.clNonReceivable.textContent = peso(r.nonReceivable);
+    SELECTORS.bdNonForfeited.textContent = peso(r.nonForfeited);
+    SELECTORS.bdForfeited.textContent = peso(r.forfeited);
 
-    // Also update the Grand Total Card to match this exact calculation
-    SELECTORS.sumIncentives.textContent = peso(r.total);
+    // Update the Summary Card for Commission (Total of all non-forfeited + forfeited)
+    SELECTORS.sumCommissionTotal.textContent = peso(r.total);
+
+    // If cutoff hasn't passed, label "Forfeited" as "Pending" or show info
+    if (!isCutoffPassed) {
+        SELECTORS.bdForfeited.style.opacity = '0.5';
+        SELECTORS.bdForfeited.title = "Not forfeited yet. Period is still current.";
+    } else {
+        SELECTORS.bdForfeited.style.opacity = '1';
+        SELECTORS.bdForfeited.title = "";
+    }
 }
 
 window.addEventListener('load', boot);

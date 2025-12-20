@@ -18,7 +18,7 @@ const SELECTORS = {
 };
 
 /* ===== Config & State ===== */
-let supabase = null;
+let supabaseClient = null;
 const SAVE_TO_DB = true;
 
 /* ===== Utils ===== */
@@ -63,15 +63,23 @@ async function boot() {
       return renderEmpty('Supabase not configured');
     }
 
-    const dummyStorage = { getItem: () => null, setItem: () => { }, removeItem: () => { } };
+    const memoryStorage = (() => {
+      let store = {};
+      return {
+        getItem: (key) => store[key] || null,
+        setItem: (key, value) => { store[key] = value; },
+        removeItem: (key) => { delete store[key]; },
+        clear: () => { store = {}; }
+      };
+    })();
 
     if (window.supabase?.createClient) {
-      supabase = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+      supabaseClient = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
         auth: {
           persistSession: false,
           autoRefreshToken: true,
           detectSessionInUrl: false,
-          storage: dummyStorage
+          storage: memoryStorage
         }
       });
       // Restore session if passed in URL
@@ -79,7 +87,7 @@ async function boot() {
       const token = params.get("access_token");
       const refresh = params.get("refresh_token");
       if (token && refresh) {
-        await supabase.auth.setSession({ access_token: token, refresh_token: refresh });
+        await supabaseClient.auth.setSession({ access_token: token, refresh_token: refresh });
       }
     }
 
@@ -291,10 +299,10 @@ async function loadAndRender() {
       { data: commissions },
       { data: collsRaw }
     ] = await Promise.all([
-      supabase.from('agents').select('id,firstname,lastname,parent_id'),
+      supabaseClient.from('agents').select('id,firstname,lastname,parent_id'),
       // Select all relevant fields, including override_commission
-      supabase.from('commissions').select('*, is_receivable, override_commission').gte('date_earned', gte).lt('date_earned', lt),
-      supabase.from('collections').select('id,agent_id,payment,is_membership_fee,member_id,payment_for').gte('date_paid', gte).lt('date_paid', lt)
+      supabaseClient.from('commissions').select('*, is_receivable, override_commission').gte('date_earned', gte).lt('date_earned', lt),
+      supabaseClient.from('collections').select('id,agent_id,payment,is_membership_fee,member_id,payment_for').gte('date_paid', gte).lt('date_paid', lt)
     ]);
 
     // 2. Initialize Rollups
@@ -365,7 +373,7 @@ async function loadAndRender() {
 /* ===== Withdraw Logic ===== */
 async function handleWithdraw(agentId, mode, customAmount) {
   try {
-    const { data: wallet, error: wErr } = await supabase
+    const { data: wallet, error: wErr } = await supabaseClient
       .from('agent_wallets')
       .select('balance')
       .eq('agent_id', agentId)
@@ -410,7 +418,7 @@ Proceed with this withdrawal?`;
 
     if (!confirm(msg)) return;
 
-    const { error: rpcErr } = await supabase.rpc('withdraw_commission', {
+    const { error: rpcErr } = await supabaseClient.rpc('withdraw_commission', {
       p_agent_id: agentId,
       p_amount: targetAmount,
       p_method: 'Gcash',
@@ -483,12 +491,12 @@ async function renderTable(rollups, agents, byAgentCols, py, pm, range) {
 
 async function renderAgentDetail(rowTr, aid, range, rollup) {
   // Fetch detailed info
-  const { data: colls } = await supabase.from('collections')
+  const { data: colls } = await supabaseClient.from('collections')
     .select('date_paid,or_no,payment_for,member_id,payment,first_name,last_name')
     .or(`agent_id.eq.${aid},collector_id.eq.${aid}`)
     .gte('date_paid', range.gte).lt('date_paid', range.lt);
 
-  const { data: wallet } = await supabase.from('agent_wallets')
+  const { data: wallet } = await supabaseClient.from('agent_wallets')
     .select('balance')
     .eq('agent_id', aid)
     .maybeSingle();

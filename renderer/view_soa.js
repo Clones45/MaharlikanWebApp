@@ -2,7 +2,7 @@
    VIEW SOA - Statement of Account Generator
    ========================================== */
 
-let supabase = null;
+let supabaseClient = null;
 let currentMemberId = null;
 
 /* ==========================================
@@ -59,13 +59,17 @@ async function init() {
         }
 
         // Initialize Supabase with dummy storage (no session persisted)
-        const dummyStorage = {
-            getItem: () => null,
-            setItem: () => { },
-            removeItem: () => { },
-        };
+        const memoryStorage = (() => {
+            let store = {};
+            return {
+                getItem: (key) => store[key] || null,
+                setItem: (key, value) => { store[key] = value; },
+                removeItem: (key) => { delete store[key]; },
+                clear: () => { store = {}; }
+            };
+        })();
 
-        supabase = window.supabase.createClient(
+        supabaseClient = window.supabase.createClient(
             env.SUPABASE_URL,
             env.SUPABASE_ANON_KEY,
             {
@@ -73,7 +77,7 @@ async function init() {
                     persistSession: false,
                     autoRefreshToken: true,
                     detectSessionInUrl: false,
-                    storage: dummyStorage,
+                    storage: memoryStorage,
                 },
             }
         );
@@ -103,7 +107,7 @@ async function loadSOA(memberId) {
         console.log('[SOA] Loading data for member:', memberId);
 
         // 1) Member - Lookup by MAF NO (passed in URL)
-        const { data: member, error: memberError } = await supabase
+        const { data: member, error: memberError } = await supabaseClient
             .from('members')
             .select('*')
             .eq('maf_no', memberId)
@@ -116,7 +120,7 @@ async function loadSOA(memberId) {
         console.log('[SOA] Member found:', member.maf_no, 'ID:', realMemberId);
 
         // 2) Beneficiaries
-        const { data: beneficiaries, error: benefError } = await supabase
+        const { data: beneficiaries, error: benefError } = await supabaseClient
             .from('beneficiaries')
             .select('*')
             .eq('member_id', realMemberId);
@@ -127,7 +131,7 @@ async function loadSOA(memberId) {
         console.log('[SOA] Beneficiaries:', beneficiaries);
 
         // 3) Collections
-        const { data: collections, error: collError } = await supabase
+        const { data: collections, error: collError } = await supabaseClient
             .from('collections')
             .select('*')
             .eq('member_id', realMemberId)
@@ -139,7 +143,7 @@ async function loadSOA(memberId) {
         console.log('[SOA] Collections:', collections);
 
         // 4) Agents (for Sales Executive name)
-        const { data: agents, error: agentError } = await supabase
+        const { data: agents, error: agentError } = await supabaseClient
             .from('agents')
             .select('id, firstname, lastname');
 
@@ -207,7 +211,7 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
         member.total_payable || member.package_value || member.contracted_price || 0;
     setText('totalPayable', formatMoney(totalPayableRaw));
 
-    setText('mop', member.mop || member.mode_of_payment || 'Monthly');
+    setText('mop', member.payment_frequency || member.mop || member.mode_of_payment || 'Monthly');
 
     const monthlyDueRaw = member.monthly_due || member.amount;
     setText('amount', formatMoney(monthlyDueRaw));

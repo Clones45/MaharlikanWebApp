@@ -23,12 +23,17 @@
     if (!env?.SUPABASE_URL || !env?.SUPABASE_ANON_KEY) {
       if (window.__ENV__) env = window.__ENV__;
     }
-    // 🛑 CRITICAL: Use dummy storage to prevent clearing main window's localStorage
-    const dummyStorage = {
-      getItem: () => null,
-      setItem: () => { },
-      removeItem: () => { },
-    };
+    // 🛑 CRITICAL: Use memory storage to prevent clearing main window's localStorage
+    // while still allowing auto-refresh to work within this window's lifecycle.
+    const memoryStorage = (() => {
+      let store = {};
+      return {
+        getItem: (key) => store[key] || null,
+        setItem: (key, value) => { store[key] = value; },
+        removeItem: (key) => { delete store[key]; },
+        clear: () => { store = {}; }
+      };
+    })();
 
     if (env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY && window.supabase?.createClient) {
       SB = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {

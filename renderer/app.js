@@ -1,4 +1,4 @@
-let supabase = null;
+let supabaseClient = null;
 let env = null;
 
 /* -------------------- DOM helpers -------------------- */
@@ -73,8 +73,8 @@ async function init() {
 
     // 2. Initialize Supabase (SINGLE INSTANCE)
     // ✅ ENABLE session persistence and auto-refresh to prevent JWT expiration
-    if (!supabase) {
-      supabase = window.supabase.createClient(
+    if (!supabaseClient) {
+      supabaseClient = window.supabase.createClient(
         env.SUPABASE_URL,
         env.SUPABASE_ANON_KEY,
         {
@@ -88,7 +88,7 @@ async function init() {
       );
 
       // ✅ Listen for auth state changes (token refresh, sign out, etc.)
-      supabase.auth.onAuthStateChange((event, session) => {
+      supabaseClient.auth.onAuthStateChange((event, session) => {
         console.log('[Auth] State changed:', event, session?.user?.email);
 
         if (event === 'SIGNED_OUT') {
@@ -120,7 +120,7 @@ async function init() {
     }
 
     // 4. Check for existing session (from localStorage)
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     if (session) {
       console.log('[Auth] ✅ Existing session found, user already logged in');
       // If we're on login page but have a session, go to dashboard
@@ -176,7 +176,7 @@ function attach() {
         console.log(`[Dashboard] Clicked ${selector} -> opening ${file}`);
 
         let target = file;
-        const session = await supabase.auth.getSession();
+        const session = await supabaseClient.auth.getSession();
         const token = session?.data?.session?.access_token;
         const refresh = session?.data?.session?.refresh_token;
 
@@ -220,7 +220,7 @@ async function onLogin() {
 
     if (!email) {
       const { data: resolvedEmail, error: rpcErr } =
-        await supabase.rpc('auth_email_for_username', { _username: identifier });
+        await supabaseClient.rpc('auth_email_for_username', { _username: identifier });
 
       if (rpcErr || !resolvedEmail) {
         setMsg('#loginMsg', 'Invalid username.', '#login-section');
@@ -230,10 +230,10 @@ async function onLogin() {
     }
 
     // 2. Clear any existing session before new login attempt
-    await supabase.auth.signOut({ scope: 'local' });
+    await supabaseClient.auth.signOut({ scope: 'local' });
 
     // 3. Sign In
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
     if (error) {
       setMsg('#loginMsg', 'Invalid username or password.', '#login-section');
@@ -264,7 +264,7 @@ async function afterLogin(session) {
     console.log('✅ LOGGED USER:', userId);
 
     // 1. Check Admin Role
-    const { data: prof, error } = await supabase
+    const { data: prof, error } = await supabaseClient
       .from('users_profile')
       .select('role, display_name')
       .eq('user_id', userId)
@@ -275,7 +275,7 @@ async function afterLogin(session) {
     }
 
     if ((prof.role || '').toLowerCase() !== 'admin') {
-      await supabase.auth.signOut({ scope: 'local' }); // ✅ Immediate logout if not admin
+      await supabaseClient.auth.signOut({ scope: 'local' }); // ✅ Immediate logout if not admin
       throw new Error('Admins only.');
     }
 
@@ -301,7 +301,7 @@ async function afterLogin(session) {
     console.error('[afterLogin]', e);
     setMsg('#loginMsg', e.message, '#login-section');
     // Ensure we are logged out if afterLogin fails
-    await supabase.auth.signOut({ scope: 'local' });
+    await supabaseClient.auth.signOut({ scope: 'local' });
     show(qs('#login-section'));
     hide(qs('#dashboard'));
   }
@@ -310,7 +310,7 @@ async function afterLogin(session) {
 /* -------------------- Logout -------------------- */
 async function onSignOut() {
   try {
-    await supabase.auth.signOut({ scope: 'local' });
+    await supabaseClient.auth.signOut({ scope: 'local' });
   } catch (e) {
     console.warn('[logout]', e);
   } finally {

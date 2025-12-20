@@ -368,6 +368,14 @@
                     <option value="all">All Agents</option>
                 </select>
             </label>
+            <label>Period Accumulation
+                <select id="freqSel">
+                    <option value="1">Monthly (1m)</option>
+                    <option value="3">Quarterly (3m)</option>
+                    <option value="6">Bi-annually (6m)</option>
+                    <option value="12">Annually (12m)</option>
+                </select>
+            </label>
             <button id="applyBtn" class="primary">Load Data</button>
             <button id="printBtn">Print / PDF</button>
             <div id="periodDisplay" class="period-display">
@@ -379,79 +387,92 @@
         <!-- Summary Cards -->
         <div class="summary-grid">
             <div class="summary-card">
-                <div class="summary-title">Grand Total Commission</div>
-                <div class="summary-value green" id="sumIncentives">₱0.00</div>
-                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">All Commissions</div>
+                <div class="summary-title">Total Accumulated Collections</div>
+                <div class="summary-value" style="color:#60a5fa" id="sumCollections">₱0.00</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">Gross Period Collections</div>
             </div>
             <div class="summary-card">
-                <div class="summary-title">Total Tax Collected</div>
+                <div class="summary-title">Taxes (Withholding)</div>
                 <div class="summary-value orange" id="sumTax">₱0.00</div>
-                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">10% Withholding Tax</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">10% from Approved Withdrawals</div>
             </div>
             <div class="summary-card">
-                <div class="summary-title">Processing Fees</div>
-                <div class="summary-value purple" id="sumFees">₱0.00</div>
-                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">Admin / Transaction Fees</div>
+                <div class="summary-title">Combined Incentives</div>
+                <div class="summary-value purple" id="sumIncentivesSub">₱0.00</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">Rice + Office + Recruiter</div>
             </div>
             <div class="summary-card">
-                <div class="summary-title">Rice Incentives</div>
-                <div class="summary-value" style="color:#f472b6" id="sumRice">0 kg</div>
-                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">1 Membership (MS) = 1 Kilo</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-title">Office Allocated (Exp)</div>
-                <div class="summary-value" style="color:#60a5fa" id="sumOffice">₱0.00</div>
-                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">First Monthly Payment (NS)</div>
+                <div class="summary-title">Total Commission</div>
+                <div class="summary-value green" id="sumCommissionTotal">₱0.00</div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:5px">Non-forfeited + Forfeited</div>
             </div>
         </div>
 
-        <!-- Commission Breakdown Summary (New) -->
+        <!-- Metric Detailed Breakdown -->
+        <div class="summary-grid"
+            style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 20px; opacity: 0.9;">
+            <div class="summary-card" style="padding: 15px;">
+                <div class="summary-title" style="font-size: 10px;">Rice Reward</div>
+                <div class="summary-value" style="font-size: 18px; color:#f472b6" id="sumRice">0 kg</div>
+            </div>
+            <div class="summary-card" style="padding: 15px;">
+                <div class="summary-title" style="font-size: 10px;">Office Allocation</div>
+                <div class="summary-value" style="font-size: 18px; color:#60a5fa" id="sumOffice">₱0.00</div>
+            </div>
+            <div class="summary-card" style="padding: 15px;">
+                <div class="summary-title" style="font-size: 10px;">Processing Fees</div>
+                <div class="summary-value" style="font-size: 18px; color:#a855f7" id="sumFees">₱0.00</div>
+            </div>
+        </div>
+
+        <!-- Commission Breakdown Summary -->
         <div
-            style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; background:var(--card-bg); padding:20px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:20px;">
+            style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; background:var(--card-bg); padding:20px; border-radius:12px; border:1px solid var(--card-border); margin-bottom:20px;">
             <!-- Category Breakdown -->
             <div>
                 <h4
-                    style="color:var(--text-muted); font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:5px">
-                    Breakdown</h4>
+                    style="color:var(--text-muted); font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:15px; border-bottom:1px solid var(--card-border); padding-bottom:5px">
+                    Category Breakdown</h4>
                 <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-                    <span>Outright</span>
-                    <span id="bdOutright">₱0.00</span>
+                    <span>Monthly Commission</span>
+                    <span id="bdMonthly">₱0.00</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-                    <span>Monthly</span>
-                    <span id="bdMonthly">₱0.00</span>
+                    <span>Travel Allowance</span>
+                    <span id="bdTravel">₱0.00</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:8px">
                     <span>Overrides</span>
                     <span id="bdOverrides">₱0.00</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-                    <span>Travel</span>
-                    <span id="bdTravel">₱0.00</span>
+                    <span>Membership Outright</span>
+                    <span id="bdOutright">₱0.00</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-                    <span>RLC</span>
+                    <span>Recruiter Bonus (RLC)</span>
                     <span id="bdRecruiter">₱0.00</span>
-                </div>
-                <div
-                    style="display:flex; justify-content:space-between; font-weight:600; color:var(--primary-color); border-top:1px solid var(--border-color); padding-top:8px; margin-top:5px">
-                    <span>Total Earned</span>
-                    <span id="bdTotal">₱0.00</span>
                 </div>
             </div>
 
-            <!-- Classification Breakdown -->
+            <!-- Status Split (Forfeited vs Non-forfeited) -->
             <div>
                 <h4
-                    style="color:var(--text-muted); font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:5px">
-                    Classification</h4>
-                <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-                    <span>Receivable (Unpaid + Overrides)</span>
-                    <span style="color:#4ade80" id="clReceivable">₱0.00</span>
+                    style="color:var(--text-muted); font-size:12px; letter-spacing:1px; text-transform:uppercase; margin-bottom:15px; border-bottom:1px solid var(--card-border); padding-bottom:5px">
+                    Commission Status</h4>
+                <div style="display:flex; justify-content:space-between; margin-bottom:12px">
+                    <div style="display:flex; flex-direction:column">
+                        <span style="font-weight:600; color:var(--success)">Non-forfeited</span>
+                        <span style="font-size:11px; color:var(--text-muted)">Approved / Paid instantly</span>
+                    </div>
+                    <span style="font-size:18px; font-weight:700; color:var(--success)" id="bdNonForfeited">₱0.00</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:8px">
-                    <span>Non-Receivable (Paid)</span>
-                    <span style="color:#94a3b8" id="clNonReceivable">₱0.00</span>
+                    <div style="display:flex; flex-direction:column">
+                        <span style="font-weight:600; color:var(--danger)">Forfeited</span>
+                        <span style="font-size:11px; color:var(--text-muted)">Pending after cutoff</span>
+                    </div>
+                    <span style="font-size:18px; font-weight:700; color:var(--danger)" id="bdForfeited">₱0.00</span>
                 </div>
             </div>
         </div>

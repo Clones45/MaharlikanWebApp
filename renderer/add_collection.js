@@ -64,7 +64,7 @@ function setBusy(busy) {
 /* ==========================================================================
    2. APP STATE & SUPABASE
    ========================================================================== */
-let supabase = null;
+let supabaseClient = null;
 let currentMember = null;
 let planCache = {};
 
@@ -83,19 +83,27 @@ async function boot() {
       return;
     }
 
-    const dummyStorage = { getItem: () => null, setItem: () => { }, removeItem: () => { } };
+    const memoryStorage = (() => {
+      let store = {};
+      return {
+        getItem: (key) => store[key] || null,
+        setItem: (key, value) => { store[key] = value; },
+        removeItem: (key) => { delete store[key]; },
+        clear: () => { store = {}; }
+      };
+    })();
 
     if (window.supabase?.createClient) {
-      supabase = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+      supabaseClient = window.supabase.createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
         auth: {
           persistSession: false,
           autoRefreshToken: true,
           detectSessionInUrl: false,
-          storage: dummyStorage
+          storage: memoryStorage
         },
       });
 
-      supabase.auth.onAuthStateChange((event) => {
+      supabaseClient.auth.onAuthStateChange((event) => {
         if (event === 'SIGNED_OUT') {
           console.log('[Auth] User signed out.');
           alert('⚠️ Session expired. Please sign in again on the main window.');
@@ -158,7 +166,7 @@ async function loadCollectors() {
   if (!sel) return;
 
   try {
-    const { data: agents, error } = await supabase
+    const { data: agents, error } = await supabaseClient
       .from('agents')
       .select('id, firstname, lastname')
       .order('firstname', { ascending: true });
@@ -203,7 +211,7 @@ async function loadMemberForMAF() {
   info.textContent = `Looking up AF No: ${afNumber} …`;
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('members')
       .select('*')
       .eq('maf_no', afNumber)
@@ -219,6 +227,18 @@ async function loadMemberForMAF() {
     }
 
     currentMember = data[0];
+
+    // Auto-fill amount based on frequency
+    const amountInput = qs('#amount');
+    if (amountInput) {
+      const freq = currentMember.payment_frequency || 'Monthly';
+      const monthly = num(currentMember.monthly_due);
+      let factor = 1;
+      if (freq === 'Quarterly') factor = 3;
+      else if (freq === 'Bi-annually') factor = 6;
+      else if (freq === 'Annually') factor = 12;
+      amountInput.value = (monthly * factor).toFixed(2);
+    }
 
     // Calculate installments & Validate Balance
     const { count: installmentsPaid, totalPaid, error: calcErr } = await calculateInstallmentsPaid(
@@ -238,7 +258,7 @@ async function loadMemberForMAF() {
           console.warn(`[Auto-Fix] Balance mismatch! DB: ${currentBal}, Calc: ${expectedBalance}. Fixing...`);
           await recomputeMemberBalance(currentMember.id);
           // Reload member to get fresh data
-          const { data: fresh } = await supabase.from('members').select('*').eq('id', currentMember.id).single();
+          const { data: fresh } = await supabaseClient.from('members').select('*').eq('id', currentMember.id).single();
 
 
           if (fresh) currentMember = fresh;
@@ -249,7 +269,7 @@ async function loadMemberForMAF() {
     // Fetch Agent Name
     let agentName = 'None';
     if (currentMember.agent_id) {
-      const { data: ag } = await supabase
+      const { data: ag } = await supabaseClient
         .from('agents')
         .select('firstname, lastname')
         .eq('id', currentMember.agent_id)
@@ -265,6 +285,7 @@ async function loadMemberForMAF() {
     info.innerHTML = [
       `<b>Name:</b> ${esc(currentMember.first_name || 'N/A')} ${esc(currentMember.last_name || '')}`,
       `<b>Package:</b> ${esc(currentMember.plan_type || 'N/A')}`,
+      `<b>Frequency:</b> ${esc(currentMember.payment_frequency || 'Monthly')}`,
       `<b>Monthly Due:</b> ${peso(currentMember.monthly_due)}`,
       `<b>Contracted Price:</b> ${peso(currentMember.contracted_price)}`,
       `<b>Balance:</b> ${peso(currentMember.balance)}`,
@@ -286,7 +307,7 @@ async function calculateInstallmentsPaid(memberId, monthlyDue) {
   if (!memberId) return { count: 0, totalPaid: 0 };
 
   try {
-    const { data: cols, error } = await supabase
+    const { data: cols, error } = await supabaseClient
       .from('collections')
       .select('payment, payment_for')
       .eq('member_id', memberId);
@@ -431,8 +452,10 @@ async function onSave(e) {
     let finalPayment = inputAmount;
 
     if (isMembership) {
-      // Membership Rule: Deduct=350, Accrue=500
-      finalPayment = isDeduct ? 350 : 500;
+      // Membership Rule: Gross amount is always 500.
+      // Even if deducted (agent takes 150), we record 500 in the collections table
+      // so that it totals correctly in reports and reduces the member's balance properly.
+      finalPayment = 500;
     } else {
       // Regular validation
       if (finalPayment <= 0) {
@@ -475,7 +498,7 @@ async function onSave(e) {
 
     console.log('[onSave] Inserting:', payload);
 
-    const { error: insErr } = await supabase
+    const { error: insErr } = await supabaseClient
       .from('collections')
       .insert(payload)
       .single();
@@ -494,7 +517,7 @@ async function onSave(e) {
     const cPrice = num(currentMember.contracted_price);
 
     // Re-fetch member to get UPDATED balance for calculations
-    const { data: freshMem } = await supabase.from('members').select('*').eq('id', currentMember.id).single();
+    const { data: freshMem } = await supabaseClient.from('members').select('*').eq('id', currentMember.id).single();
 
     if (freshMem && mDue > 0) {
       // Calculate Pre-Payment Status Logic
@@ -540,7 +563,7 @@ async function onSave(e) {
 
         const newStartStr = newStartDate.toISOString().slice(0, 10);
 
-        const { error: upDateErr } = await supabase
+        const { error: upDateErr } = await supabaseClient
           .from('members')
           .update({ plan_start_date: newStartStr })
           .eq('id', currentMember.id);
@@ -598,7 +621,7 @@ function partialResetForm() {
  */
 async function recomputeMemberBalance(memberId) {
   try {
-    const { data: allCollections, error: colErr } = await supabase
+    const { data: allCollections, error: colErr } = await supabaseClient
       .from('collections')
       .select('payment, payment_for')
       .eq('member_id', memberId);
@@ -615,7 +638,7 @@ async function recomputeMemberBalance(memberId) {
     }
 
     // Get fresh member data for contracted price
-    const { data: mem, error: memErr } = await supabase
+    const { data: mem, error: memErr } = await supabaseClient
       .from('members')
       .select('contracted_price, balance')
       .eq('id', memberId)
@@ -630,7 +653,7 @@ async function recomputeMemberBalance(memberId) {
     const newBalance = Math.max(0, basePrice - totalPaid);
     const safeBalance = Number(newBalance.toFixed(2));
 
-    const { error: updErr } = await supabase
+    const { error: updErr } = await supabaseClient
       .from('members')
       .update({ balance: safeBalance })
       .eq('id', memberId);
