@@ -192,6 +192,7 @@
         <option value="NSA2">NSA2</option>
         <option value="NSB1">NSB1</option>
         <option value="NSB2">NSB2</option>
+        <option value="A">A</option>
       </select>
 
       <button onclick="generateCode()">Generate Code</button>
@@ -209,29 +210,179 @@
 
     <h2>Generated Codes List</h2>
 
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>CODE</th>
-          <th>TYPE</th>
-          <th>EXPIRES</th>
-          <th>STATUS</th>
-        </tr>
-      </thead>
+    <style>
+      .table-container {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        margin-top: 15px;
+      }
 
-      <tbody id="codeTable">
+      table {
+        margin-top: 0;
+        /* Override previous margin */
+      }
+
+      thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+    </style>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>CODE</th>
+            <th>TYPE</th>
+            <th>EXPIRES</th>
+            <th>STATUS</th>
+          </tr>
+        </thead>
+
+        <tbody id="codeTable">
+          <tr>
+            <td colspan="5">Loading codes…</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top: 30px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
+      <h3>📌 Code Legend</h3>
+      <table style="width: 100%; font-size: 14px; text-align: left;">
         <tr>
-          <td colspan="5">Loading codes…</td>
+          <td><b>MS</b></td>
+          <td>MEMBERSHIP</td>
+          <td><b>NSA1</b></td>
+          <td>NEW SALES A1</td>
         </tr>
-      </tbody>
-    </table>
+        <tr>
+          <td><b>NSA2</b></td>
+          <td>NEW SALES A2</td>
+          <td><b>NSB1</b></td>
+          <td>NEW SALES B1</td>
+        </tr>
+        <tr>
+          <td><b>NSB2</b></td>
+          <td>NEW SALES B2</td>
+          <td><b>A</b></td>
+          <td>AGENT</td>
+        </tr>
+      </table>
+    </div>
 
     <p class="footer-note">
       ✅ Available = not used & not expired <br>
       ❌ Used = already claimed <br>
       ⏱ Expired = past cutoff date (7th-of-the-month rule)
     </p>
+
+    <!-- CUSTOM MODAL -->
+    <div id="customModal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3>✨ Generate New Code?</h3>
+        <p>Are you sure you want to generate a new access code?</p>
+        <div class="modal-buttons">
+          <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+          <button class="btn-confirm" onclick="confirmGeneration()">Yes, Generate It!</button>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      /* MODAL STYLES */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        opacity: 1;
+        transition: opacity 0.3s ease;
+      }
+
+      .modal-overlay.hidden {
+        display: none;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .modal-content {
+        background: white;
+        padding: 25px 30px;
+        border-radius: 16px;
+        text-align: center;
+        width: 350px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        transform: scale(1);
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+
+      .modal-overlay.hidden .modal-content {
+        transform: scale(0.8);
+      }
+
+      .modal-content h3 {
+        margin: 0 0 10px 0;
+        color: #0a5cff;
+        font-size: 20px;
+      }
+
+      .modal-content p {
+        color: #666;
+        margin-bottom: 25px;
+        font-size: 15px;
+      }
+
+      .modal-buttons {
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+      }
+
+      .modal-buttons button {
+        flex: 1;
+        cursor: pointer;
+        padding: 12px;
+        font-weight: bold;
+        border-radius: 10px;
+        border: none;
+        transition: transform 0.1s, opacity 0.2s;
+      }
+
+      .modal-buttons button:active {
+        transform: scale(0.95);
+      }
+
+      .btn-cancel {
+        background: #f0f0f0;
+        color: #555;
+      }
+
+      .btn-cancel:hover {
+        background: #e0e0e0;
+      }
+
+      .btn-confirm {
+        background: linear-gradient(135deg, #00c6ff, #0072ff);
+        color: white;
+        box-shadow: 0 5px 15px rgba(0, 114, 255, 0.3);
+      }
+
+      .btn-confirm:hover {
+        opacity: 0.9;
+        box-shadow: 0 8px 20px rgba(0, 114, 255, 0.4);
+      }
+    </style>
 
   </div>
 

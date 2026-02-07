@@ -23,6 +23,7 @@ const addBeneficiaryBtn = document.getElementById("addBeneficiaryBtn");
 const beneContainer = document.getElementById("beneficiaries-container");
 
 const updateBtn = document.getElementById("updateBtn");
+const transferBtn = document.getElementById("transferBtn");
 const deleteBtn = document.getElementById("deleteBtn");
 const agentSelect = document.getElementById("agentSelect");
 
@@ -174,6 +175,15 @@ function populateForm(m) {
     const el = document.getElementById(key);
     if (el) {
       if (el.type === "date" && m[key]) {
+        // Fix: Use simple string parsing to avoid Timezone shifts (e.g. 2000-01-01 becoming 1999-12-31)
+        // If it's an ISO string (YYYY-MM-DD...)
+        const val = String(m[key]);
+        if (val.match(/^\d{4}-\d{2}-\d{2}/)) {
+          el.value = val.substring(0, 10); // Take just the date part
+          return;
+        }
+
+        // Fallback for non-standard formats
         const d = new Date(m[key]);
         if (!isNaN(d.getTime())) {
           const yyyy = d.getFullYear();
@@ -217,6 +227,9 @@ async function loadBeneficiaries(memberId) {
 async function renderMember(member) {
   populateForm(member);
   await loadBeneficiaries(member.id);
+
+  // Show Transfer button only if member is loaded
+  if (transferBtn) transferBtn.style.display = 'inline-block';
 }
 
 /* =========================
@@ -274,12 +287,9 @@ async function onUpdate() {
     }
   });
 
-  // ✅ Normalize any edge case key (safety fallback)
-  if (payload["phone_number"]) {
-    payload.phone_number = payload["phone_number"];
-    delete payload["phone_number"];
-  }
 
+  // ✅ Normalize any edge case key (safety fallback)
+  // (Removed destructive phone_number block)
 
   // Agent: store agent_id (int) on members
   if (agentSelect) {
@@ -300,15 +310,16 @@ async function onUpdate() {
     if (payload[k] === "") payload[k] = null;
     if (payload[k] != null) payload[k] = Number(payload[k]);
   });
+
+  // Basic date validation
   if (payload.birth_date && isNaN(new Date(payload.birth_date).getTime())) {
-    delete payload.birth_date; // remove invalid date
+    delete payload.birth_date;
   }
 
   try {
     console.log("[onUpdate] Payload:", payload);
 
-    // 🔍 Normalize possible field naming issues before cleaning
-    // 🔍 Normalize possible field naming issues before cleaning
+    // 🔍 Normalize possible field naming issues 
     if (payload.contact_number) {
       payload.phone_number = payload.contact_number;
       delete payload.contact_number;
@@ -458,7 +469,77 @@ async function onUpdate() {
 
     showSplash(msg, "error");
   }
+}
 
+/* =========================
+   Transfer Member Logic
+   ========================= */
+if (transferBtn) {
+  transferBtn.addEventListener("click", onTransfer);
+}
+
+async function onTransfer() {
+  const memberId = document.getElementById("member_id").value;
+  if (!memberId) return showSplash("No member loaded.", "error");
+
+  if (!confirm("⚠️ TRANSFER MEMBER CONFIRMATION ⚠️\n\nThis will:\n1. RESET the contestability period (Plan Start Date = Today)\n2. Record the Transfer Date as Today\n3. Keep the original 'Date Joined' unchanged\n\nAre you sure you want to proceed?")) {
+    return;
+  }
+
+  // 1. Network check
+  if (!navigator.onLine) {
+    return showSplash("No internet connection. Please reconnect and retry.", "error");
+  }
+
+  try {
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // Prepare payload for Transfer
+    // We only need to update specific fields, but we should also capture
+    // any edits currently in the form? 
+    // Usually a Transfer implies saving current state + resetting dates.
+    // So let's reuse the logic of 'onUpdate' but OVERRIDE the dates.
+
+    // Instead of duplicating onUpdate, let's manually do a specific update for transfer
+    // OR we can just update the two fields if we assume the user isn't editing other things simultaneously.
+    // However, to be safe and consistent with "Save", let's update everything currently in the form
+    // PLUS the override dates.
+
+    // BUT, 'onUpdate' is complex. Let's do a targeted update for reliability first.
+    // If the user changed the name/address, they should click "Update" first?
+    // Let's assume Transfer ONLY handles the transfer aspect to be safe.
+
+    const payload = {
+      plan_start_date: todayStr,
+      transferred_date: todayStr
+    };
+
+    console.log("[onTransfer] Updating dates:", payload);
+
+    const { error: upErr } = await SB
+      .from("members")
+      .update(payload)
+      .eq("id", memberId);
+
+    if (upErr) throw upErr;
+
+    showSplash("✅ Member Transferred Successfully! Contestability reset.", "success");
+
+    // Refresh UI to show new dates
+    const { data: fresh, error: refErr } = await SB
+      .from("members")
+      .select("*")
+      .eq("id", memberId)
+      .single();
+
+    if (!refErr && fresh) {
+      await renderMember(fresh);
+    }
+
+  } catch (err) {
+    console.error("[onTransfer] Exception:", err);
+    showSplash("Transfer failed. See console.", "error");
+  }
 }
 /* =========================
    Delete

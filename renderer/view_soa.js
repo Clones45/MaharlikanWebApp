@@ -229,10 +229,68 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
     const agentName = member.sales_executive || getAgentName(member.agent_id);
     populateCollections(collections, totalPayableRaw, agentName, monthlyDueRaw, agentMap, member.date_joined);
 
+    // --- Contestability Period ---
+    const contestabilityMonths = calculateContestability(member.date_joined, collections);
+    const contestabilityText = (contestabilityMonths >= 12)
+        ? "12 Months (Max)"
+        : `${contestabilityMonths} Month${contestabilityMonths === 1 ? '' : 's'}`;
+    setText('contestability', contestabilityText);
+
     // --- Footer Signatures ---
     // User requested blank names for Manager and Collector
     // setText('footerAgent', agentName);
     // setText('footerCollector', agentName);
+}
+
+/* ==========================================
+   CONTESTABILITY LOGIC
+   ========================================== */
+function calculateContestability(dateJoined, collections) {
+    if (!dateJoined) return 0;
+
+    // Filter valid payments (exclude voided if any, though not in schema here)
+    // Sort collections by date
+    const sorted = [...(collections || [])].sort((a, b) => new Date(a.date_paid) - new Date(b.date_paid));
+
+    // 1. Initial Reference: Date Joined
+    let effectiveStartDate = new Date(dateJoined);
+    let lastActivityDate = new Date(dateJoined);
+
+    // 2. Iterate Payments to check for Gaps (Lapses)
+    sorted.forEach(col => {
+        const paymentDate = new Date(col.date_paid);
+        if (isNaN(paymentDate.getTime())) return;
+
+        // Calculate Gap from PREVIOUS activity in MONTHS
+        let monthsDiff = (paymentDate.getFullYear() - lastActivityDate.getFullYear()) * 12;
+        monthsDiff += paymentDate.getMonth() - lastActivityDate.getMonth();
+
+        // Also check if day is significantly earlier? User said "based on the month".
+        // Let's refine: If I pay Jan 1, then April 1. Gap is 3 months (Feb, Mar, Apr).
+        // If gap >= 3, Reset.
+
+        if (monthsDiff >= 3) {
+            // LAPSE DETECTED -> REINSTATEMENT
+            effectiveStartDate = paymentDate;
+        }
+
+        lastActivityDate = paymentDate;
+    });
+
+    // 3. Calculate Period from Effective Start to NOW
+    const now = new Date();
+    let currentMonths = (now.getFullYear() - effectiveStartDate.getFullYear()) * 12;
+    currentMonths += now.getMonth() - effectiveStartDate.getMonth();
+
+    // If today is day 1 and start was day 30, maybe don't count full month?
+    // User said "based on the month... stays on the system".
+    // Simple month diff seems safest interpretation of "month based".
+
+    // 4. Cap at 12
+    if (currentMonths < 0) currentMonths = 0;
+    if (currentMonths > 12) currentMonths = 12;
+
+    return currentMonths;
 }
 
 function renderBeneficiaries(beneficiaries) {

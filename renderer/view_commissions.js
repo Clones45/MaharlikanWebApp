@@ -93,6 +93,12 @@ async function boot() {
 
     setupSelectors();
     wireEvents();
+
+    // Run Auto-Sync (if available)
+    if (window.syncAGRCommissions) {
+      await window.syncAGRCommissions(supabaseClient);
+    }
+
     await loadAndRender();
 
   } catch (e) {
@@ -140,12 +146,18 @@ function cutoffRange(y, m) {
   const Y = num(y);
   const M = num(m);
 
-  const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   // 7th of selected month -> 7th of next month
   const start = new Date(Y, M - 1, 7);
   const end = new Date(Y, M, 7);
 
-  return { gte: fmt(start), lt: fmt(end), start, end };
+  const toLocal = d => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  return { gte: toLocal(start), lt: toLocal(end), start, end };
 }
 
 function updatePeriodLabel() {

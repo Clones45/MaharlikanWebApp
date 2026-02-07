@@ -44,7 +44,26 @@ function generateAccessCode(prefix) {
 // ===========================
 // GENERATE CODE
 // ===========================
-window.generateCode = async function () {
+// ===========================
+// MODAL LOGIC (CUSTOM)
+// ===========================
+const modal = document.getElementById("customModal");
+
+window.generateCode = function () {
+  // Show Modal
+  modal.classList.remove("hidden");
+};
+
+window.closeModal = function () {
+  modal.classList.add("hidden");
+};
+
+// ===========================
+// ACTUAL GENERATION (After Confirm)
+// ===========================
+window.confirmGeneration = async function () {
+  closeModal(); // Hide modal immediately
+
   const prefix = codePrefixEl.value;
   const code = generateAccessCode(prefix);
   const expiresAt = getNextCutoffDate().toISOString();

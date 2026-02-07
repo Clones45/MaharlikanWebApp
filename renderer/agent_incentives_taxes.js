@@ -530,15 +530,21 @@ function calculateRollup(list, isCutoffPassed) {
         rollup.total += val;
 
         // 2. Classification by Status (Forfeited vs Non-forfeited)
-        // Only classify non-incentive commissions for the forfeited/non-forfeited split?
-        // Or all? User said "the forfieted are those recievable commission that still on pending after the cutoff".
-        // Recruiter bonus is also in commissions table, so let's include it in the status split.
-        const isApproved = (status === 'paid' || status === 'approved' || status === 'deducted');
-        const isPendingReceivable = (isReceivable && !isApproved);
+        // FORFEITED: Commissions where is_receivable = false (Failed AGR)
+        // NON-FORFEITED: Commissions where is_receivable = true (Passed AGR)
+        // This reflects the AGR requirement: agents must pass AGR for commissions to become withdrawable.
 
-        if (isPendingReceivable && isCutoffPassed) {
-            rollup.forfeited += val;
+        if (!isReceivable) {
+            // Commission failed AGR check.
+            // ONLY mark as forfeited if the cutoff has passed. 
+            // If the period is still active, it counts as Non-Forfeited (Pending Potential).
+            if (isCutoffPassed) {
+                rollup.forfeited += val;
+            } else {
+                rollup.nonForfeited += val;
+            }
         } else {
+            // Commission passed AGR check - it's receivable (non-forfeited)
             rollup.nonForfeited += val;
         }
     });
@@ -560,15 +566,6 @@ function renderBreakdown(r, isCutoffPassed) {
 
     // Update the Summary Card for Commission (Total of all non-forfeited + forfeited)
     SELECTORS.sumCommissionTotal.textContent = peso(r.total);
-
-    // If cutoff hasn't passed, label "Forfeited" as "Pending" or show info
-    if (!isCutoffPassed) {
-        SELECTORS.bdForfeited.style.opacity = '0.5';
-        SELECTORS.bdForfeited.title = "Not forfeited yet. Period is still current.";
-    } else {
-        SELECTORS.bdForfeited.style.opacity = '1';
-        SELECTORS.bdForfeited.title = "";
-    }
 }
 
 window.addEventListener('load', boot);

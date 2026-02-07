@@ -203,12 +203,25 @@ function createWindow() {
     safeLog("[MAIN] Failed to load entry: " + err.message);
   });
 
-  if (!app.isPackaged) {
-    mainWindow.webContents.on("did-finish-load", () => {
-      ALLOWED_RENDER_FILES = buildAllowlist();
-      console.log("[MAIN] (Dev) Rebuilt allowlist:", [...ALLOWED_RENDER_FILES].join(", ") || "(none)");
-    });
-  }
+  mainWindow.webContents.on("did-finish-load", () => {
+    ALLOWED_RENDER_FILES = buildAllowlist();
+    console.log("[MAIN] (Dev) Rebuilt allowlist:", [...ALLOWED_RENDER_FILES].join(", ") || "(none)");
+    console.log("[MAIN] (Dev) Rebuilt allowlist:", [...ALLOWED_RENDER_FILES].join(", ") || "(none)");
+  });
+
+  // -----------------------------------------------------------
+  // HIDDEN SHORTCUT: CTRL + SHIFT + Q -> Manage Collections
+  // -----------------------------------------------------------
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (input.control && input.shift && input.key.toLowerCase() === "q") {
+      console.log("[SHORTCUT] CTRL+SHIFT+Q detected. Opening hidden manager...");
+      event.preventDefault();
+      // Ensure the file is allowed (it should be picked up by buildAllowlist if it exists)
+      // But we might need to manually allow it if buildAllowlist is strict about .html files in root vs pages
+      // Our buildAllowlist scans renderer/ and renderer/pages/ so it should be fine.
+      openChildWindow("manage_collections.html");
+    }
+  });
 }
 
 /* -------------------------------------------------------------

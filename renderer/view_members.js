@@ -228,16 +228,19 @@ function renderTable() {
 
   pageItems.forEach(m => {
     // Ensure months_behind is available
+    // Ensure months_behind is available
     let mb = m.months_behind;
     if (mb == undefined || mb == null) {
-      mb = calculateMonthsBehind(m);
-      m.months_behind = mb;
+      mb = 0; // Default to 0 if missing, though RPC guarantees it
     }
 
     // Determine status badge
     let statusHtml = '';
 
-    if (mb > 3) {
+    // Check for COMPLETED first
+    if ((Number(m.balance) || 0) <= 0) {
+      statusHtml = '<span class="badge-active" style="background-color: #22c55e; color: white;">COMPLETED</span>';
+    } else if (mb > 3) {
       statusHtml = '<span class="badge-lapsed">LAPSED</span>';
     } else if (mb >= 2) {
       statusHtml = '<span class="badge-at-risk">AT RISK</span>';
@@ -249,8 +252,10 @@ function renderTable() {
     }
 
     // Row Highlighting based on status
+    // Row Highlighting based on status
     const tr = document.createElement('tr');
-    if (mb > 3) tr.className = 'row-lapsed';
+    if ((Number(m.balance) || 0) <= 0) tr.className = 'row-active'; // Completed is considered active/good
+    else if (mb > 3) tr.className = 'row-lapsed';
     else if (mb >= 2) tr.className = 'row-at-risk';
     else if (mb >= 1) tr.className = 'row-warning';
     else tr.className = 'row-active';
@@ -403,54 +408,14 @@ async function loadAllMembers() {
 
   while (true) {
     const { data: members, error } = await supabaseClient
-      .from('members')
-      .select('id, maf_no, last_name, first_name, middle_name, gender, civil_status, address, zipcode, birth_date, birthplace, nationality, age, height, weight, religion, phone_number, monthly_due, plan_type, contracted_price, date_joined, plan_start_date, balance, casket_type, membership, occupation, agent_id')
-      .order('last_name', { ascending: true })
-      .order('first_name', { ascending: true })
-      .range(from, from + PAGE - 1);
+      .rpc('get_all_members_expanded', { p_offset: from, p_limit: PAGE });
 
     if (error) throw error;
     const rows = members || [];
     if (!rows.length) break;
 
-    // Process rows to calculate months_behind locally
-    const processed = rows.map(m => {
-      // Logic: (MonthsSinceStart) - (InstallmentsPaid)
-      // InstallmentsPaid = (Contracted - Balance) / MonthlyDue
-
-      // Determine Start Date (Plan Start > Date Joined > Now)
-      let startDateStr = m.plan_start_date || m.date_joined;
-      let start = startDateStr ? new Date(startDateStr) : new Date();
-      if (isNaN(start.getTime())) start = new Date(); // Fallback if invalid
-
-      const now = new Date();
-
-      // Calculate Months Since Start
-      let monthsSince = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-      // Adjust if today is before the start day-of-month
-      if (now.getDate() < start.getDate()) {
-        monthsSince--;
-      }
-      if (monthsSince < 0) monthsSince = 0;
-
-      // Calculate Installments Paid
-      const cPrice = Number(m.contracted_price) || 0;
-      const bal = Number(m.balance) || 0;
-      const mDue = Number(m.monthly_due) || 0;
-
-      let paidCount = 0;
-      if (mDue > 0 && cPrice > 0) {
-        // paid amount = contracted - balance
-        const paidAmount = cPrice - bal;
-        paidCount = paidAmount / mDue;
-      }
-
-      // Calculate Months Behind
-      let behind = monthsSince - paidCount;
-      m.months_behind = behind;
-
-      return m;
-    });
+    // Process rows - months_behind is now pre-calculated by the RPC
+    const processed = rows;
 
     // collect member ids for bene fetch
     allIds.push(...processed.map(r => r.id));
