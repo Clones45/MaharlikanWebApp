@@ -342,6 +342,20 @@ function populateCollections(collections, totalAmount, defaultCollector, monthly
     // Track the last payment (or joining) date
     let lastDate = new Date(dateJoined || new Date());
 
+    // Sort: Membership first, then by Date ascending
+    collections.sort((a, b) => {
+        const isMemA = (a.payment_for || '').toLowerCase().includes('membership') || a.is_membership_fee;
+        const isMemB = (b.payment_for || '').toLowerCase().includes('membership') || b.is_membership_fee;
+
+        if (isMemA && !isMemB) return -1;
+        if (!isMemA && isMemB) return 1;
+
+        // Secondary sort by date
+        const dateA = new Date(a.date_paid || a.created_at || 0);
+        const dateB = new Date(b.date_paid || b.created_at || 0);
+        return dateA - dateB;
+    });
+
     collections.forEach((col) => {
         const payment = Number(col.payment || col.amount || 0);
         let monthsPaid = 0;
@@ -367,10 +381,16 @@ function populateCollections(collections, totalAmount, defaultCollector, monthly
         // ---------------------------------------------
 
         if (!isNaN(payment)) {
-            runningBalance -= payment;
-            if (monthlyDueVal > 0) {
-                monthsPaid = payment / monthlyDueVal;
-                runningInstallment += monthsPaid;
+            const payFor = (col.payment_for || '').toLowerCase();
+            const isMembership = payFor.includes('membership');
+
+            // Only deduct from balance / add to installment if NOT membership
+            if (!isMembership) {
+                runningBalance -= payment;
+                if (monthlyDueVal > 0) {
+                    monthsPaid = payment / monthlyDueVal;
+                    runningInstallment += monthsPaid;
+                }
             }
         }
 
@@ -385,13 +405,19 @@ function populateCollections(collections, totalAmount, defaultCollector, monthly
             ? '<span style="color:#059669; font-weight:bold; font-size:11px; margin-right: 5px;">Reinstated</span>'
             : '';
 
+        // Check if membership again for display logic
+        const payFor = (col.payment_for || '').toLowerCase();
+        const isMem = payFor.includes('membership');
+
+        const installmentDisplay = isMem ? '-' : parseFloat(runningInstallment.toFixed(2));
+
         tr.innerHTML = `
       <td>${formatDate(col.date_paid)}</td>
       <td style="text-align: right;">
         ${reinstatedHtml}${formatMoney(payment)}
       </td>
       <td>${col.or_no || col.or_number || '-'}</td>
-      <td style="text-align: center;">${parseFloat(runningInstallment.toFixed(2))}</td>
+      <td style="text-align: center;">${installmentDisplay}</td>
       <td style="text-align: right;">${formatMoney(Math.max(0, runningBalance))}</td>
       <td>${collectorName}</td>
     `;

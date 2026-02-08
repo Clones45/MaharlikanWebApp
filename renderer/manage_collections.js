@@ -59,9 +59,39 @@ window.checkAuth = function () {
     }
 }
 
-authInput.addEventListener('keyup', (e) => {
-    if (e.key === 'Enter') checkAuth();
-});
+if (authInput) {
+    authInput.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') checkAuth();
+    });
+}
+
+const togglePassword = document.getElementById('togglePassword');
+if (togglePassword && authInput) {
+    togglePassword.addEventListener('click', () => {
+        const type = authInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        authInput.setAttribute('type', type);
+
+        // Toggle Icon
+        if (type === 'text') {
+            // Show Eye Slash (Hide)
+            togglePassword.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a7.028 7.028 0 0 0-2.79.588l.77.771A5.944 5.944 0 0 1 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.134 13.134 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755-.165.165-.337.328-.517.486l.708.709z"/>
+                    <path d="M11.297 9.176a3.5 3.5 0 0 0-4.474-4.474l.823.823a2.5 2.5 0 0 1 2.829 2.829l.822.822zm-2.943 1.299.822.822a3.5 3.5 0 0 1-4.474-4.474l.823.823a2.5 2.5 0 0 0 2.829 2.829z"/>
+                    <path d="M3.35 5.47c-.18.16-.353.322-.518.487A13.134 13.134 0 0 0 1.172 8l.195.288c.335.48.83 1.12 1.465 1.755C4.121 11.332 5.881 12.5 8 12.5c.716 0 1.39-.133 2.02-.36l.77.772A7.029 7.029 0 0 1 8 13.5C3 13.5 0 8 0 8s.939-1.721 2.641-3.238l.708.709zm10.296 8.884-12-12 .708-.708 12 12-.708.708z"/>
+                </svg>
+            `;
+        } else {
+            // Show Eye (Show)
+            togglePassword.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                    <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                </svg>
+            `;
+        }
+    });
+}
 
 /* ---------- Init ---------- */
 async function init() {
@@ -122,21 +152,80 @@ function wireEvents() {
     cancelEditBtn.addEventListener('click', () => editModal.classList.remove('show'));
     saveEditBtn.addEventListener('click', saveEdit);
 
-    // Search Listener
+    // Global Search Listener with Debounce
+    let searchTimer;
     document.getElementById('searchInput').addEventListener('keyup', (e) => {
-        const term = e.target.value.toLowerCase();
-        if (!window._currentData) return;
-
-        const filtered = window._currentData.filter(row => {
-            return (
-                (row.last_name || '').toLowerCase().includes(term) ||
-                (row.first_name || '').toLowerCase().includes(term) ||
-                (row.maf_no || '').toLowerCase().includes(term) ||
-                (row.or_no || '').toLowerCase().includes(term)
-            );
-        });
-        renderTable(filtered, true);
+        const term = e.target.value.trim();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => performSearch(term), 400);
     });
+}
+
+
+
+// Ensure search input exists before trying to access it
+const searchInput = document.getElementById('searchInput');
+
+function setSearchLoading(isLoading) {
+    if (!searchInput) return;
+
+    if (isLoading) {
+        searchInput.disabled = true;
+        searchInput.style.cursor = 'wait';
+        searchInput.dataset.originalPlaceholder = searchInput.placeholder;
+        searchInput.placeholder = 'Processing... please wait';
+        searchInput.style.opacity = '0.6';
+    } else {
+        searchInput.disabled = false;
+        searchInput.style.cursor = 'text';
+        searchInput.placeholder = searchInput.dataset.originalPlaceholder || 'Search Name, AF No, or OR No...';
+        searchInput.style.opacity = '1';
+        searchInput.focus();
+    }
+}
+
+// Global Search Function
+async function performSearch(term) {
+    if (!term) {
+        // Restore original loaded data
+        if (window._loadedMonthData) {
+            window._displayedData = window._loadedMonthData;
+            renderTable(window._loadedMonthData);
+            statusMsg.textContent = `Found ${window._loadedMonthData.length} records.`;
+        } else {
+            window._displayedData = [];
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 20px; color: #777;">Select a period and click Load.</td></tr>';
+            statusMsg.textContent = '';
+        }
+        return;
+    }
+
+    // Perform Global Search
+    statusMsg.textContent = "Searching database...";
+    // setSearchLoading(true); // Can optionally lock during search too, but per user request specifically for "updates".
+
+    try {
+        // Construct the OR filter - exact match for OR/AF, partial for names
+        const filter = `last_name.ilike.%${term}%,first_name.ilike.%${term}%,maf_no.ilike.%${term}%,or_no.ilike.%${term}%`;
+
+        const { data, error } = await supabaseClient
+            .from('collections')
+            .select('*')
+            .or(filter)
+            .order('date_paid', { ascending: false })
+            .limit(50); // Limit results for performance
+
+        if (error) throw error;
+
+        window._displayedData = data;
+        statusMsg.textContent = `Search found ${data.length} matches (Global).`;
+        renderTable(data, true);
+
+    } catch (err) {
+        console.error("Search error:", err);
+        statusMsg.textContent = "Error searching database.";
+    }
+    // finally { setSearchLoading(false); }
 }
 
 /* ---------- Load Logic ---------- */
@@ -145,6 +234,7 @@ async function loadCollections() {
 
     statusMsg.textContent = "Loading...";
     tbody.innerHTML = '';
+    // setSearchLoading(true);
 
     const y = yearSel.value;
     const m = monthSel.value;
@@ -170,22 +260,26 @@ async function loadCollections() {
 
     console.log(`Loading range: ${startDate} to ${endDate}`);
 
-    const { data, error } = await supabaseClient
-        .from('collections')
-        .select('*')
-        .gte('date_paid', startDate)
-        .lte('date_paid', endDate)
-        .order('date_paid', { ascending: false });
+    try {
+        const { data, error } = await supabaseClient
+            .from('collections')
+            .select('*')
+            .gte('date_paid', startDate)
+            .lte('date_paid', endDate)
+            .order('date_paid', { ascending: false });
 
-    if (error) {
+        if (error) throw error;
+
+        window._loadedMonthData = data; // Store original month data
+        window._displayedData = data;   // Store currently displayed data
+        statusMsg.textContent = `Found ${data.length} records.`;
+        renderTable(data);
+
+    } catch (error) {
         console.error(error);
         statusMsg.textContent = "Error loading collections.";
-        return;
     }
-
-    window._currentData = data; // Store original data
-    statusMsg.textContent = `Found ${data.length} records.`;
-    renderTable(data);
+    // finally { setSearchLoading(false); }
 }
 
 function renderTable(data, isSearch = false) {
@@ -210,21 +304,26 @@ function renderTable(data, isSearch = false) {
   `).join('');
 
     // Update count message if searching
-    if (isSearch && window._currentData) {
-        statusMsg.textContent = `Showing ${data.length} matches (from ${window._currentData.length} records).`;
+    if (isSearch && window._loadedMonthData) {
+        statusMsg.textContent = `Showing ${data.length} matches (Global Search).`;
     } else if (!isSearch) {
         statusMsg.textContent = `Found ${data.length} records.`;
     }
-
-    // Update stash only if NOT searching (searching shouldn't overwrite base data, but loadCollections does)
-    // Actually, loadCollections sets window._currentData. renderTable just renders.
-    // So we don't need to stash here anymore if we do it in loadCollections.
 }
+// Update stash only if NOT searching (searching shouldn't overwrite base data, but loadCollections does)
+// Actually, loadCollections sets window._currentData. renderTable just renders.
+// So we don't need to stash here anymore if we do it in loadCollections.
+
 
 /* ---------- Edit Logic ---------- */
-window.openEdit = (id) => {
-    const row = window._currentData.find(r => r.id === id);
-    if (!row) return;
+function openEdit(id) {
+    const row = (window._displayedData || []).find(r => String(r.id) === String(id));
+    if (!row) {
+        console.error("Row not found for ID:", id, "in", window._displayedData);
+        return;
+    }
+
+    console.log("Editing row:", row);
 
     editIdInput.value = row.id;
     editMemberIdInput.value = row.member_id; // Crucial for re-balancing
@@ -234,7 +333,8 @@ window.openEdit = (id) => {
     editReasonInput.value = row.payment_for;
 
     editModal.classList.add('show');
-};
+}
+window.openEdit = openEdit;
 
 async function saveEdit() {
     const id = editIdInput.value;
@@ -248,6 +348,7 @@ async function saveEdit() {
 
     saveEditBtn.disabled = true;
     saveEditBtn.textContent = "Saving...";
+    setSearchLoading(true);
 
     try {
         const { error } = await supabaseClient
@@ -272,7 +373,13 @@ async function saveEdit() {
             await recomputeMemberBalance(memberId);
         }
 
-        loadCollections(); // Refresh list
+        // Refresh list
+        const searchTerm = document.getElementById('searchInput').value.trim();
+        if (searchTerm) {
+            await performSearch(searchTerm);
+        } else {
+            await loadCollections();
+        }
 
     } catch (e) {
         console.error(e);
@@ -280,14 +387,16 @@ async function saveEdit() {
     } finally {
         saveEditBtn.disabled = false;
         saveEditBtn.textContent = "Save Changes";
+        setSearchLoading(false);
     }
 }
 
 /* ---------- Delete Logic ---------- */
-window.confirmDelete = async (id) => {
+async function confirmDelete(id) {
     if (!confirm("Are you sure you want to delete this collection? This will reverse the payment from the member's balance.")) return;
 
-    const row = window._currentData.find(r => r.id === id);
+    setSearchLoading(true);
+    const row = (window._displayedData || []).find(r => String(r.id) === String(id));
     const memberId = row ? row.member_id : null;
 
     try {
@@ -304,12 +413,20 @@ window.confirmDelete = async (id) => {
             await recomputeMemberBalance(memberId);
         }
 
-        loadCollections();
+        const searchTerm = document.getElementById('searchInput').value.trim();
+        if (searchTerm) {
+            await performSearch(searchTerm);
+        } else {
+            await loadCollections();
+        }
     } catch (e) {
         console.error(e);
         alert("Delete failed: " + e.message);
+    } finally {
+        setSearchLoading(false);
     }
-};
+}
+window.confirmDelete = confirmDelete;
 
 /* ---------- Re-Balancing Logic (Copied/Adapted from add_collection.js) ---------- */
 async function recomputeMemberBalance(memberId) {
@@ -327,8 +444,13 @@ async function recomputeMemberBalance(memberId) {
         let totalPaid = 0;
         for (const c of allCollections || []) {
             const payFor = (c.payment_for || '').toLowerCase();
-            if (!payFor || payFor.includes('membership') || payFor.includes('regular')) {
-                totalPaid += Number(c.payment || 0);
+            // Only Regular payments count towards balance (Membership is excluded)
+            if (!payFor || payFor.includes('regular')) {
+                // Note: We checking for 'regular' or empty (legacy). 
+                // Explicitly excluding 'membership'.
+                if (!payFor.includes('membership')) {
+                    totalPaid += Number(c.payment || 0);
+                }
             }
         }
 

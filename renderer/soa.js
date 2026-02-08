@@ -221,7 +221,9 @@ async function loadMemberSOA(member) {
       .order("date_paid", { ascending: false });
 
     const payments = Array.isArray(cdata) ? cdata : [];
-    const totalPaid = payments.reduce((s, p) => s + (Number(p.payment) || 0), 0);
+    const totalPaid = payments
+      .filter(p => !p.payment_for?.toLowerCase().includes('membership'))
+      .reduce((s, p) => s + (Number(p.payment) || 0), 0);
     // Always compute balance dynamically from totalPaid
     const contracted = Number(member.contracted_price) || 0;
     const balance = Math.max(0, contracted - totalPaid);

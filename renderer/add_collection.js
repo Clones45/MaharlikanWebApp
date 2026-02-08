@@ -241,30 +241,45 @@ async function loadMemberForMAF() {
     }
 
     // Calculate installments & Validate Balance
-    const { count: installmentsPaid, totalPaid, error: calcErr } = await calculateInstallmentsPaid(
+    const { count: installmentsPaid, totalPaid, hasMembership, error: calcErr } = await calculateInstallmentsPaid(
       currentMember.id,
       num(currentMember.monthly_due)
     );
 
     if (!calcErr) {
+      if (!currentMember) return; // Wait aborted
+
       // Self-Healing: Check if balance is out of sync
       const contracted = num(currentMember.contracted_price);
+      let needsFix = false;
+
+      // 1. Check Balance
       if (contracted > 0) {
         const expectedBalance = Math.max(0, contracted - totalPaid);
         const currentBal = num(currentMember.balance);
-
-        // Allow tiny float diff, but if different, fix it
         if (Math.abs(expectedBalance - currentBal) > 0.5) {
-          console.warn(`[Auto-Fix] Balance mismatch! DB: ${currentBal}, Calc: ${expectedBalance}. Fixing...`);
-          await recomputeMemberBalance(currentMember.id);
-          // Reload member to get fresh data
-          const { data: fresh } = await supabaseClient.from('members').select('*').eq('id', currentMember.id).single();
-
-
-          if (fresh) currentMember = fresh;
+          console.warn(`[Auto-Fix] Balance mismatch! DB: ${currentBal}, Calc: ${expectedBalance}.`);
+          needsFix = true;
         }
       }
+
+      // 2. Check Membership Status
+      // If we found a membership payment but DB says false
+      if (hasMembership && !currentMember.membership_paid) {
+        console.warn(`[Auto-Fix] Membership paid but DB says No.`);
+        needsFix = true;
+      }
+
+      if (needsFix) {
+        console.log('Triggering recomputeMemberBalance to fix data...');
+        await recomputeMemberBalance(currentMember.id);
+
+        // Reload member to get fresh data
+        const { data: fresh } = await supabaseClient.from('members').select('*').eq('id', currentMember.id).single();
+        if (fresh) currentMember = fresh;
+      }
     }
+
 
     // Fetch Agent Name
     let agentName = 'None';
@@ -315,16 +330,25 @@ async function calculateInstallmentsPaid(memberId, monthlyDue) {
     if (error) throw error;
 
     let totalRegular = 0;
+    let hasMembership = false;
+
     for (const c of cols || []) {
       const payFor = (c.payment_for || '').toLowerCase();
-      // Count regular and membership payments
-      if (!payFor || payFor.includes('regular') || payFor.includes('membership')) {
-        totalRegular += num(c.payment);
+
+      if (payFor.includes('membership') || c.payment_for === 'membership') {
+        hasMembership = true;
+      }
+
+      // Count regular payments only (Membership excluded)
+      if (!payFor || payFor.includes('regular')) {
+        if (!payFor.includes('membership')) {
+          totalRegular += num(c.payment);
+        }
       }
     }
 
     const count = (monthlyDue > 0) ? Math.floor(totalRegular / monthlyDue) : 0;
-    return { count, totalPaid: totalRegular };
+    return { count, totalPaid: totalRegular, hasMembership };
   } catch (e) {
     console.error('[calcInstallments]', e);
     return { count: 0, totalPaid: 0, error: e };
@@ -629,18 +653,27 @@ async function recomputeMemberBalance(memberId) {
     if (colErr) throw colErr;
 
     let totalPaid = 0;
+    let hasMembership = false;
+
     for (const c of allCollections || []) {
       const payFor = (c.payment_for || '').toLowerCase();
-      // Only Regular and Membership count towards balance
-      if (!payFor || payFor.includes('membership') || payFor.includes('regular')) {
-        totalPaid += num(c.payment);
+      // Check for membership
+      if (payFor.includes('membership') || c.is_membership_fee === true) {
+        hasMembership = true;
+      }
+
+      // Only Regular counts towards balance (Membership is excluded)
+      if (!payFor || payFor.includes('regular')) {
+        if (!payFor.includes('membership')) {
+          totalPaid += num(c.payment);
+        }
       }
     }
 
     // Get fresh member data for contracted price
     const { data: mem, error: memErr } = await supabaseClient
       .from('members')
-      .select('contracted_price, balance')
+      .select('contracted_price, balance, membership_paid')
       .eq('id', memberId)
       .single();
 
@@ -653,13 +686,21 @@ async function recomputeMemberBalance(memberId) {
     const newBalance = Math.max(0, basePrice - totalPaid);
     const safeBalance = Number(newBalance.toFixed(2));
 
+    const updates = { balance: safeBalance };
+
+    // Only update membership_paid if it changed (to avoid unnecessary writes)
+    if (hasMembership && !mem.membership_paid) {
+      updates.membership_paid = true;
+      console.log('Detected membership payment. Setting membership_paid = true.');
+    }
+
     const { error: updErr } = await supabaseClient
       .from('members')
-      .update({ balance: safeBalance })
+      .update(updates)
       .eq('id', memberId);
 
-    if (updErr) console.error('[Balance Update Failed]', updErr);
-    else console.log(`Balance updated to ${peso(safeBalance)}`);
+    if (updErr) console.error('[Balance/Membership Update Failed]', updErr);
+    else console.log(`Member updated: Balance=${peso(safeBalance)}, Membership=${hasMembership}`);
 
   } catch (err) {
     console.warn('[recomputeMemberBalance] failed:', err);
