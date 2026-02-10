@@ -106,7 +106,7 @@ async function boot() {
       supabaseClient.auth.onAuthStateChange((event) => {
         if (event === 'SIGNED_OUT') {
           console.log('[Auth] User signed out.');
-          alert('⚠️ Session expired. Please sign in again on the main window.');
+          toast('⚠️ Session expired. Please sign in again.', 'error');
         }
       });
     }

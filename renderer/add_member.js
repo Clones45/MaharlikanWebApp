@@ -35,17 +35,48 @@ const PLAN_DATA = {
 };
 
 function setMsg(text) { const el = qs('#formMsg'); if (el) el.textContent = text || ''; }
+
+/** Toast Notification - Non-blocking feedback */
+const toastEl = (() => {
+  const x = document.getElementById('toast');
+  if (!x) {
+    const el = document.createElement('div');
+    el.id = 'toast';
+    el.setAttribute('role', 'alert');
+    el.setAttribute('aria-live', 'assertive');
+    document.body.appendChild(el);
+    return el;
+  }
+  return x;
+})();
+
+function toast(msg, type = 'info') {
+  toastEl.textContent = msg || '';
+  toastEl.className = `show ${type}`;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toastEl.classList.remove('show'), 3000);
+}
+
 function setBusy(b) {
   const btn = qs('#saveBtn');
   if (btn) { btn.disabled = !!b; btn.dataset.busy = b ? '1' : ''; btn.textContent = b ? 'Saving…' : 'Save Member'; }
 }
 function err(field, message) {
-  const el = document.querySelector(`[data-err="${field}"]`);
-  if (el) el.textContent = message || '';
+  // Show inline error message
+  const errorEl = document.querySelector(`[data-err="${field}"]`);
+  if (errorEl) errorEl.textContent = message || '';
+
+  // Add visual error styling to the field
+  const fieldEl = document.querySelector(`[name="${field}"]`);
+  if (fieldEl) fieldEl.classList.add('field-error');
 }
+
 function clearErrors() {
   qsa('[data-err]').forEach(el => el.textContent = '');
-  qsa('input,select,textarea').forEach(el => el.classList.remove('invalid'));
+  qsa('input,select,textarea').forEach(el => {
+    el.classList.remove('invalid');
+    el.classList.remove('field-error');
+  });
 }
 
 async function boot() {
@@ -124,9 +155,8 @@ async function boot() {
 
       if (event === 'SIGNED_OUT') {
         console.log('[add_member Auth] User signed out (session invalid/expired).');
-        // 🛑 PREVENT REDIRECT LOOP: Do not auto-close or redirect.
-        // Just warn the user so they don't lose data.
-        alert('⚠️ Session expired or invalid.\n\nPlease keep this window open and sign in again on the main window to save your work.');
+        // Show non-blocking error message
+        setMsg('⚠️ Session expired. Please sign in again on the main window to save your work.');
       }
     });
 
@@ -192,17 +222,35 @@ function wire() {
   // Auto-calc Age
   const bd = qs('input[name="birth_date"]');
   const age = qs('input[name="age"]');
-  bd?.addEventListener('change', () => {
-    if (!bd.value) return;
+
+  const calculateAge = () => {
+    console.log('[calculateAge] Triggered, bd.value:', bd?.value);
+    if (!bd || !bd.value) return;
     try {
       const dob = new Date(bd.value + 'T00:00:00');
       const today = new Date();
       let a = today.getFullYear() - dob.getFullYear();
       const m = today.getMonth() - dob.getMonth();
       if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) a--;
-      if (a >= 0 && Number.isFinite(a)) age.value = String(a);
-    } catch (_) { }
-  });
+      console.log('[calculateAge] Calculated age:', a);
+      if (a >= 0 && Number.isFinite(a) && age) {
+        age.value = String(a);
+        console.log('[calculateAge] Age field updated to:', a);
+      }
+    } catch (err) {
+      console.error('[calculateAge] Error:', err);
+    }
+  };
+
+  console.log('[wire] Birthdate input found:', !!bd, 'Age input found:', !!age);
+  if (bd && age) {
+    // Listen to both 'input' (immediate) and 'change' (on blur) events
+    bd.addEventListener('input', calculateAge);
+    bd.addEventListener('change', calculateAge);
+    console.log('[wire] Age event listeners attached successfully');
+  } else {
+    console.error('[wire] Missing inputs - birthdate:', !!bd, 'age:', !!age);
+  }
 
   // ✅ Auto-populate plan fields when plan is selected
   const planSel = qs('#planType');
@@ -504,7 +552,7 @@ function validate(payload) {
 
   if (!ok) {
     if (firstField) { firstField.scrollIntoView({ behavior: 'smooth', block: 'center' }); firstField.focus(); }
-    alert('Please fill the required fields:\n\n- ' + missing.map(s => s.toUpperCase()).join('\n- '));
+    toast('⚠️ Please fill all required fields', 'error');
   }
   return ok;
 }
@@ -548,7 +596,7 @@ function friendlyError(err) {
 
 async function onSave(e) {
   e.preventDefault();
-  setMsg('');
+  clearErrors();
   setBusy(true);
 
   try {
@@ -556,8 +604,37 @@ async function onSave(e) {
     const { payload, benes } = gather(form);
 
     if (!validate(payload)) {
-      setMsg('Please complete the missing fields.');
+      toast('⚠️ Please complete all required fields.', 'error');
       setBusy(false);
+
+      // Force Electron window focus via IPC (main process level fix)
+      setTimeout(() => {
+        // Call main process to force window focus
+        if (window.electronAPI?.focusWindow) {
+          window.electronAPI.focusWindow();
+          console.log('[onSave] Requested window focus from main process');
+        }
+
+        // Also do DOM-level fixes as backup
+        const form = qs('#memberForm');
+        if (form) {
+          Array.from(form.elements).forEach(el => {
+            if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
+              el.disabled = false;
+              el.style.pointerEvents = 'auto';
+            }
+          });
+        }
+
+        // Force focus to first input
+        const firstInput = qs('input[name="maf_no"]');
+        if (firstInput) {
+          firstInput.focus();
+          firstInput.click();
+          console.log('[onSave] Form re-enabled and focus restored after validation error');
+        }
+      }, 150);
+
       return;
     }
 
@@ -584,12 +661,27 @@ async function onSave(e) {
     }
 
     resetForm(form);
-    alert('✅ Saved successfully.');
+
+    // Show success toast instead of blocking alert
+    toast('✅ Saved successfully!', 'success');
+
+    // Auto-focus first input immediately
+    setTimeout(() => {
+      const firstInput = qs('input[name="maf_no"]');
+      if (firstInput) {
+        firstInput.focus();
+        console.log('[onSave] Auto-focus restored to first input');
+      }
+    }, 50);
   } catch (err) {
     console.error('[save member] ', err);
     const human = friendlyError(err);
-    setMsg('Save failed: ' + human);
-    alert('❌ Save failed:\n\n' + human);
+    toast('❌ Save failed: ' + human, 'error');
+    // Auto-focus first input after error
+    setTimeout(() => {
+      const firstInput = qs('input[name="maf_no"]');
+      if (firstInput) firstInput.focus();
+    }, 100);
   } finally {
     setBusy(false);
   }

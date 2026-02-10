@@ -54,6 +54,66 @@
       background: rgba(255, 255, 255, 0.1);
       color: var(--neon-accent);
     }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Toast Notification Styles */
+    #toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      min-width: 300px;
+      max-width: 500px;
+      padding: 16px 20px;
+      background: rgba(11, 12, 16, 0.95);
+      border-left: 4px solid #2196F3;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transform: translateX(120%);
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      opacity: 0;
+      z-index: 10000;
+      pointer-events: none;
+    }
+
+    #toast.show {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #toast.success {
+      border-left-color: #4CAF50;
+      background: rgba(76, 175, 80, 0.15);
+    }
+
+    #toast.error {
+      border-left-color: #f44336;
+      background: rgba(244, 67, 54, 0.15);
+    }
+
+    #toast.info {
+      border-left-color: #2196F3;
+      background: rgba(33, 150, 243, 0.15);
+    }
+
+    /* Inline Validation Styles */
+    .field-error {
+      border-color: #f44336 !important;
+      box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2) !important;
+    }
+
+    .error-message {
+      display: block;
+      color: #f44336;
+      font-size: 12px;
+      margin-top: 4px;
+      margin-bottom: 8px;
+    }
   </style>
 </head>
 
@@ -254,8 +314,11 @@
     </main>
   </div>
 
-  <script type="module" src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./add_member.js"></script>
+  <!-- Toast Notification Container -->
+  <div id="toast" role="alert" aria-live="assertive"></div>
+
+  <script src="../dist/supabase.js"></script>
+  <script src="add_member.js"></script>
 </body>
 
 </html>

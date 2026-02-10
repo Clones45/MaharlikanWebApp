@@ -348,7 +348,6 @@ async function saveEdit() {
 
     saveEditBtn.disabled = true;
     saveEditBtn.textContent = "Saving...";
-    setSearchLoading(true);
 
     try {
         const { error } = await supabaseClient
@@ -387,7 +386,6 @@ async function saveEdit() {
     } finally {
         saveEditBtn.disabled = false;
         saveEditBtn.textContent = "Save Changes";
-        setSearchLoading(false);
     }
 }
 
@@ -395,7 +393,6 @@ async function saveEdit() {
 async function confirmDelete(id) {
     if (!confirm("Are you sure you want to delete this collection? This will reverse the payment from the member's balance.")) return;
 
-    setSearchLoading(true);
     const row = (window._displayedData || []).find(r => String(r.id) === String(id));
     const memberId = row ? row.member_id : null;
 
@@ -422,8 +419,6 @@ async function confirmDelete(id) {
     } catch (e) {
         console.error(e);
         alert("Delete failed: " + e.message);
-    } finally {
-        setSearchLoading(false);
     }
 }
 window.confirmDelete = confirmDelete;

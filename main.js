@@ -2,7 +2,7 @@
 // Maharlikan Admin Desktop — main.js (with Safe Config Popup)
 // =============================================================
 
-const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
@@ -191,6 +191,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      devTools: !app.isPackaged, // Disable DevTools in production
     },
   });
 
@@ -232,6 +233,12 @@ app.whenReady().then(() => {
   if (!checkEnvOrExit()) return;
 
   createWindow();
+
+  // Disable application menu in production to prevent sensitive data exposure
+  if (app.isPackaged) {
+    Menu.setApplicationMenu(null);
+    console.log("[MAIN] Application menu disabled for production.");
+  }
 
   app.on("web-contents-created", (_, contents) => {
     contents.setWindowOpenHandler(() => {
@@ -332,6 +339,16 @@ app.whenReady().then(() => {
     }
 
     openChildWindow(full);
+  });
+
+  // Force window focus (fix for Electron input blocking)
+  ipcMain.on("focus-window", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+      mainWindow.webContents.focus();
+      console.log("[MAIN] Window focus forced via IPC");
+    }
   });
 
   app.on("activate", () => {

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Verification Codes - Admin Panel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles_tables.css">
+    <style>
+        .verification-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .agent-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .agent-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .agent-email {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .verification-code {
+            font-size: 32px;
+            font-weight: bold;
+            color: #27ae60;
+            letter-spacing: 4px;
+            text-align: center;
+            padding: 15px;
+            background: #ecf0f1;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .member-count {
+            color: #3498db;
+            font-weight: bold;
+        }
+
+        .copy-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .copy-btn:hover {
+            background: #2980b9;
+        }
+
+        .regenerate-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .regenerate-btn:hover {
+            background: #c0392b;
+        }
+
+        .no-pending {
+            text-align: center;
+            padding: 40px;
+            color: #95a5a6;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <div class="header-bar">
+            <h1>📧 Agent Verification Codes</h1>
+            <button id="btnBackHome" class="btn btn-secondary">🏠 Back to Dashboard</button>
+        </div>
+
+        <div class="content">
+            <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 10px 0; color: #2e7d32;">📋 Instructions</h3>
+                <p style="margin: 0; color: #1b5e20;">
+                    Below are agents who have met the 3-member requirement but need to verify their account.
+                    Copy their verification code and send it to them manually via SMS, WhatsApp, or email.
+                </p>
+            </div>
+
+            <div id="verificationList">
+                <div class="loading">Loading verification codes...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="supabase.js"></script>
+    <script src="agent_verification_codes.js"></script>
+</body>
+
+</html>

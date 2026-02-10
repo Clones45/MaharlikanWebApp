@@ -196,7 +196,10 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
     setText('email', member.email);
     setText('height', member.height);
     setText('weight', member.weight);
-    setText('status', member.civil_status || member.status);
+    setText('height', member.height);
+    setText('weight', member.weight);
+    // Status set later via calculation
+    // setText('status', member.civil_status || member.status);
 
     setText('religion', member.religion);
     setText('bloodType', member.blood_type);
@@ -216,8 +219,45 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
     const monthlyDueRaw = member.monthly_due || member.amount;
     setText('amount', formatMoney(monthlyDueRaw));
 
+    // Calculate Effective Start Date for Due Date
+    const effectiveDate = getEffectiveStartDate(member.date_joined, collections);
+    const day = effectiveDate.getDate();
+
+    // Suffix for day (st, nd, rd, th)
+    const suffix = (day) => {
+        if (day > 3 && day < 21) return 'th';
+        switch (day % 10) {
+            case 1: return "st";
+            case 2: return "nd";
+            case 3: return "rd";
+            default: return "th";
+        }
+    };
+
     setText('dateInception', formatDate(member.date_joined));
-    setText('dueDate', member.due_date ? member.due_date : '-'); // due date is usually day-of-month only
+    setText('dueDate', `Every ${day}${suffix(day)} of the month`);
+
+    // --- Grace Period Status Calculation ---
+    // --- Grace Period Status Calculation ---
+    // Pass member.date_joined to detect reinstatement vs normal
+    const { status, color, daysGrace } = calculateGracePeriodStatus(effectiveDate, collections, monthlyDueRaw, totalPayableRaw, member.date_joined);
+
+    const statusEl = document.getElementById('status');
+    if (statusEl) {
+        statusEl.textContent = status;
+        statusEl.style.color = color;
+        statusEl.style.fontWeight = 'bold';
+    }
+
+    // Display Grace Period
+    const gracePeriodEl = document.getElementById('gracePeriod');
+    if (gracePeriodEl) {
+        gracePeriodEl.textContent = daysGrace > 0 ? `${daysGrace} Days` : '0 Days';
+        // Optional: Color code it too?
+        gracePeriodEl.style.color = color;
+        gracePeriodEl.style.fontWeight = 'bold';
+    }
+
 
     setText('salesExecutive', member.sales_executive || getAgentName(member.agent_id));
 
@@ -230,7 +270,8 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
     populateCollections(collections, totalPayableRaw, agentName, monthlyDueRaw, agentMap, member.date_joined);
 
     // --- Contestability Period ---
-    const contestabilityMonths = calculateContestability(member.date_joined, collections);
+    // --- Contestability Period ---
+    const contestabilityMonths = calculateContestability(member.date_joined, collections, status);
     const contestabilityText = (contestabilityMonths >= 12)
         ? "12 Months (Max)"
         : `${contestabilityMonths} Month${contestabilityMonths === 1 ? '' : 's'}`;
@@ -245,18 +286,134 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
 /* ==========================================
    CONTESTABILITY LOGIC
    ========================================== */
-function calculateContestability(dateJoined, collections) {
+function calculateContestability(dateJoined, collections, status) {
     if (!dateJoined) return 0;
+    if (status === 'Lapsed') return 0; // Reset to 0 if Lapsed
 
-    // Filter valid payments (exclude voided if any, though not in schema here)
-    // Sort collections by date
+    // 1. Get Effective Start Date (handles reinstatement)
+    const effectiveStartDate = getEffectiveStartDate(dateJoined, collections);
+
+    // 3. Calculate Period from Effective Start to NOW
+    const now = new Date();
+    let currentMonths = (now.getFullYear() - effectiveStartDate.getFullYear()) * 12;
+    currentMonths += now.getMonth() - effectiveStartDate.getMonth();
+
+    // 4. Cap at 12
+    if (currentMonths < 0) currentMonths = 0;
+    if (currentMonths > 12) currentMonths = 12;
+
+    return currentMonths;
+}
+
+function calculateGracePeriodStatus(effectiveStartDate, collections, monthlyDue, totalPayable, dateJoined) {
+    // 1. Calculate Total Valid Payments.
+    // Logic update: If NOT reinstated, count ALL valid payments (even before effectiveStartDate).
+    // If Reinstated, count only payments >= effectiveStartDate.
+
+    // Check if Reinstated (effectiveStartDate > dateJoined)
+    // Note: effectiveStartDate is derived from dateJoined.
+    // If no gap >= 3 months, effectiveStartDate == dateJoined.
+    // Allow small tolerance or strict inequality.
+    const effTime = effectiveStartDate.getTime();
+    const joinTime = new Date(dateJoined).getTime();
+    const isReinstated = effTime > joinTime;
+
+    // Sort collections
     const sorted = [...(collections || [])].sort((a, b) => new Date(a.date_paid) - new Date(b.date_paid));
 
-    // 1. Initial Reference: Date Joined
+    let validPaymentSum = 0;
+
+    // Filter collections
+    sorted.forEach(c => {
+        const pDate = new Date(c.date_paid);
+        let include = false;
+
+        if (isReinstated) {
+            // Strict filter for reinstatement
+            if (pDate.getTime() >= effTime) include = true;
+        } else {
+            // Include ALL payments if not reinstated
+            include = true;
+        }
+
+        if (include) {
+            const payFor = (c.payment_for || '').toLowerCase();
+            const isMembership = c.is_membership_fee === true || payFor.includes('membership');
+            if (!isMembership) {
+                validPaymentSum += Number(c.payment || c.amount || 0);
+            }
+        }
+    });
+
+    // 2. Calculate Months Covered
+    const mDue = Number(monthlyDue) || 0;
+    let monthsCovered = 0;
+    if (mDue > 0) {
+        monthsCovered = validPaymentSum / mDue;
+    }
+
+    // 3. Calculate Paid Through Date
+    const paidUntil = new Date(effectiveStartDate);
+    const wholeMonths = Math.floor(monthsCovered);
+    // Add whole months
+    paidUntil.setMonth(paidUntil.getMonth() + wholeMonths);
+
+    // 4. Next Due Date
+    // Rule: Next Due is Paid Through + 1 Day.
+    const nextDueDate = new Date(paidUntil);
+    nextDueDate.setDate(nextDueDate.getDate() + 1);
+
+    // 5. Grace Days (From Next Due Date)
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const ndd = new Date(nextDueDate);
+    ndd.setHours(0, 0, 0, 0);
+
+    let graceDays = 0;
+    if (now.getTime() > ndd.getTime()) {
+        const diffMs = now.getTime() - ndd.getTime();
+        graceDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    }
+
+    // Determine Status
+    let status = 'Active';
+    let color = '#22c55e'; // Green
+
+    // Balance Override
+    const totalP = Number(totalPayable) || 0;
+    const balance = Math.max(0, totalP - validPaymentSum); // approx
+
+    if (balance <= 0 && totalP > 0) {
+        status = 'Completed';
+        color = '#22c55e';
+    } else {
+        if (graceDays <= 0) {
+            status = 'Active';
+            color = '#22c55e';
+        } else if (graceDays >= 1 && graceDays <= 29) {
+            status = 'Warning';
+            color = '#eab308';
+        } else if (graceDays >= 30 && graceDays <= 59) {
+            status = 'Lapsable';
+            color = '#f97316';
+        } else {
+            status = 'Lapsed';
+            color = '#ef4444';
+        }
+    }
+
+    return { status, color, daysGrace: Math.max(0, graceDays) };
+}
+
+function getEffectiveStartDate(dateJoined, collections) {
+    if (!dateJoined) return new Date();
+
+    // Filter valid payments
+    const sorted = [...(collections || [])].sort((a, b) => new Date(a.date_paid) - new Date(b.date_paid));
+
     let effectiveStartDate = new Date(dateJoined);
     let lastActivityDate = new Date(dateJoined);
 
-    // 2. Iterate Payments to check for Gaps (Lapses)
     sorted.forEach(col => {
         const paymentDate = new Date(col.date_paid);
         if (isNaN(paymentDate.getTime())) return;
@@ -264,10 +421,6 @@ function calculateContestability(dateJoined, collections) {
         // Calculate Gap from PREVIOUS activity in MONTHS
         let monthsDiff = (paymentDate.getFullYear() - lastActivityDate.getFullYear()) * 12;
         monthsDiff += paymentDate.getMonth() - lastActivityDate.getMonth();
-
-        // Also check if day is significantly earlier? User said "based on the month".
-        // Let's refine: If I pay Jan 1, then April 1. Gap is 3 months (Feb, Mar, Apr).
-        // If gap >= 3, Reset.
 
         if (monthsDiff >= 3) {
             // LAPSE DETECTED -> REINSTATEMENT
@@ -277,20 +430,7 @@ function calculateContestability(dateJoined, collections) {
         lastActivityDate = paymentDate;
     });
 
-    // 3. Calculate Period from Effective Start to NOW
-    const now = new Date();
-    let currentMonths = (now.getFullYear() - effectiveStartDate.getFullYear()) * 12;
-    currentMonths += now.getMonth() - effectiveStartDate.getMonth();
-
-    // If today is day 1 and start was day 30, maybe don't count full month?
-    // User said "based on the month... stays on the system".
-    // Simple month diff seems safest interpretation of "month based".
-
-    // 4. Cap at 12
-    if (currentMonths < 0) currentMonths = 0;
-    if (currentMonths > 12) currentMonths = 12;
-
-    return currentMonths;
+    return effectiveStartDate;
 }
 
 function renderBeneficiaries(beneficiaries) {

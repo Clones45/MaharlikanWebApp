@@ -166,7 +166,8 @@ function attach() {
     '#btnInquires': 'inquiries.html',
     '#btnRequest': 'view-withdrawals.html',
     '#btnGenerate': 'access_codes.html',
-    '#btnIncentivesTaxes': 'agent_incentives_taxes.html'
+    '#btnIncentivesTaxes': 'agent_incentives_taxes.html',
+    '#btnAgentVerificationCodes': 'agent_verification_codes.html'
   };
 
   Object.entries(dashboardMap).forEach(([selector, file]) => {
