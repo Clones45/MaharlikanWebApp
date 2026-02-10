@@ -339,11 +339,12 @@ async function calculateInstallmentsPaid(memberId, monthlyDue) {
         hasMembership = true;
       }
 
-      // Count regular payments only (Membership excluded)
-      if (!payFor || payFor.includes('regular')) {
-        if (!payFor.includes('membership')) {
-          totalRegular += num(c.payment);
-        }
+      // Count regular AND adapted payments (exclude membership only)
+      const isAdapted = payFor.includes('adapted');
+      const isMembership = payFor.includes('membership');
+
+      if (!isMembership) {
+        totalRegular += num(c.payment);
       }
     }
 
@@ -662,11 +663,11 @@ async function recomputeMemberBalance(memberId) {
         hasMembership = true;
       }
 
-      // Only Regular counts towards balance (Membership is excluded)
-      if (!payFor || payFor.includes('regular')) {
-        if (!payFor.includes('membership')) {
-          totalPaid += num(c.payment);
-        }
+      // Count regular AND adapted payments (exclude membership only)
+      const isMembership = payFor.includes('membership');
+
+      if (!isMembership) {
+        totalPaid += num(c.payment);
       }
     }
 

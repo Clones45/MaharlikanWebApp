@@ -252,7 +252,7 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
     // Display Grace Period
     const gracePeriodEl = document.getElementById('gracePeriod');
     if (gracePeriodEl) {
-        gracePeriodEl.textContent = daysGrace > 0 ? `${daysGrace} Days` : '0 Days';
+        gracePeriodEl.textContent = status === 'PENDING' ? 'PENDING' : (daysGrace > 0 ? `${daysGrace} Days` : '0 Days');
         // Optional: Color code it too?
         gracePeriodEl.style.color = color;
         gracePeriodEl.style.fontWeight = 'bold';
@@ -272,9 +272,11 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
     // --- Contestability Period ---
     // --- Contestability Period ---
     const contestabilityMonths = calculateContestability(member.date_joined, collections, status);
-    const contestabilityText = (contestabilityMonths >= 12)
-        ? "12 Months (Max)"
-        : `${contestabilityMonths} Month${contestabilityMonths === 1 ? '' : 's'}`;
+    const contestabilityText = (contestabilityMonths === -1)
+        ? "PENDING"
+        : (contestabilityMonths >= 12)
+            ? "12 Months (Max)"
+            : `${contestabilityMonths} Month${contestabilityMonths === 1 ? '' : 's'}`;
     setText('contestability', contestabilityText);
 
     // --- Footer Signatures ---
@@ -288,6 +290,10 @@ function populateSOA(member, beneficiaries, collections, agentMap) {
    ========================================== */
 function calculateContestability(dateJoined, collections, status) {
     if (!dateJoined) return 0;
+
+    // 🔥 NEW: If status is PENDING, contestability is also PENDING (return -1 as indicator)
+    if (status === 'PENDING') return -1;
+
     if (status === 'Lapsed') return 0; // Reset to 0 if Lapsed
 
     // 1. Get Effective Start Date (handles reinstatement)
@@ -322,6 +328,7 @@ function calculateGracePeriodStatus(effectiveStartDate, collections, monthlyDue,
     const sorted = [...(collections || [])].sort((a, b) => new Date(a.date_paid) - new Date(b.date_paid));
 
     let validPaymentSum = 0;
+    let hasRegularPayment = false; // Track if any regular payment exists
 
     // Filter collections
     sorted.forEach(c => {
@@ -339,11 +346,24 @@ function calculateGracePeriodStatus(effectiveStartDate, collections, monthlyDue,
         if (include) {
             const payFor = (c.payment_for || '').toLowerCase();
             const isMembership = c.is_membership_fee === true || payFor.includes('membership');
-            if (!isMembership) {
+            const isAdapted = payFor.includes('adapted');
+
+            // Only count regular payments (not membership, not adapted)
+            if (!isMembership && !isAdapted) {
                 validPaymentSum += Number(c.payment || c.amount || 0);
+                hasRegularPayment = true;
             }
         }
     });
+
+    // 🔥 NEW: If no regular payments exist, status is PENDING
+    if (!hasRegularPayment) {
+        return {
+            status: 'PENDING',
+            color: '#6b7280', // Gray color
+            daysGrace: 0
+        };
+    }
 
     // 2. Calculate Months Covered
     const mDue = Number(monthlyDue) || 0;
@@ -548,15 +568,27 @@ function populateCollections(collections, totalAmount, defaultCollector, monthly
         // Check if membership again for display logic
         const payFor = (col.payment_for || '').toLowerCase();
         const isMem = payFor.includes('membership');
+        const isAdapted = payFor.includes('adapted');
 
         const installmentDisplay = isMem ? '-' : parseFloat(runningInstallment.toFixed(2));
+
+        // Show "ADAPTED" for OR No if payment_for is 'adapted'
+        let orNoDisplay = (col.or_no || col.or_number || '-');
+        if (isAdapted) {
+            // If payment_for has details (e.g., "adapted - 3 months"), show that
+            if (payFor.length > 7) { // 'adapted'.length is 7
+                orNoDisplay = payFor.toUpperCase();
+            } else {
+                orNoDisplay = 'ADAPTED';
+            }
+        }
 
         tr.innerHTML = `
       <td>${formatDate(col.date_paid)}</td>
       <td style="text-align: right;">
         ${reinstatedHtml}${formatMoney(payment)}
       </td>
-      <td>${col.or_no || col.or_number || '-'}</td>
+      <td>${orNoDisplay}</td>
       <td style="text-align: center;">${installmentDisplay}</td>
       <td style="text-align: right;">${formatMoney(Math.max(0, runningBalance))}</td>
       <td>${collectorName}</td>

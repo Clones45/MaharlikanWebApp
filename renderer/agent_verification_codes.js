@@ -83,17 +83,18 @@ async function loadVerificationCodes() {
             return;
         }
 
-        // For each agent, get their member count
+        // For each agent, get their membership payment count
         const agentsWithCounts = await Promise.all(
             agents.map(async (agent) => {
                 const { count } = await sb
-                    .from('members')
+                    .from('collections')
                     .select('*', { count: 'exact', head: true })
-                    .eq('agent_id', agent.id);
+                    .eq('agent_id', agent.id)
+                    .eq('payment_for', 'membership');
 
                 return {
                     ...agent,
-                    memberCount: count || 0,
+                    paymentCount: count || 0,
                     email: agent.users_profile?.email || 'No email'
                 };
             })
@@ -107,7 +108,7 @@ async function loadVerificationCodes() {
                         <div class="agent-name">${agent.firstname} ${agent.lastname}</div>
                         <div class="agent-email">📧 ${agent.email}</div>
                         <div style="margin-top: 5px;">
-                            <span class="member-count">👥 ${agent.memberCount} members recruited</span>
+                            <span class="member-count">💰 ${agent.paymentCount} membership payments</span>
                             <span class="status-badge status-pending">Pending Verification</span>
                         </div>
                     </div>
@@ -118,18 +119,15 @@ async function loadVerificationCodes() {
                 </div>
                 
                 <div style="text-align: center;">
-                    <button class="copy-btn" onclick="copyCode('${agent.verification_code}', ${agent.id})">
+                    <button class="copy-btn" onclick="copyCode('${agent.verification_code}', ${agent.id}, event)">
                         📋 Copy Code
-                    </button>
-                    <button class="regenerate-btn" onclick="regenerateCode(${agent.id})">
-                        🔄 Regenerate Code
                     </button>
                 </div>
                 
                 <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 5px; font-size: 13px;">
                     <strong>Quick Actions:</strong><br>
                     • Copy code above and send via SMS/WhatsApp<br>
-                    • Tell ${agent.firstname} to check the verification modal in the app<br>
+                    • Code was auto-generated when ${agent.firstname} collected 2nd membership payment<br>
                     • Created: ${new Date(agent.created_at).toLocaleString()}
                 </div>
             </div>
@@ -145,7 +143,7 @@ async function loadVerificationCodes() {
     }
 }
 
-function copyCode(code, agentId) {
+function copyCode(code, agentId, event) {
     navigator.clipboard.writeText(code).then(() => {
         const btn = event.target;
         const originalText = btn.innerHTML;
@@ -159,27 +157,4 @@ function copyCode(code, agentId) {
     }).catch(err => {
         alert('Failed to copy code: ' + err.message);
     });
-}
-
-async function regenerateCode(agentId) {
-    if (!confirm('Are you sure you want to regenerate the verification code?')) {
-        return;
-    }
-
-    try {
-        const { data, error } = await sb.rpc('request_verification_code', {
-            p_agent_id: agentId
-        });
-
-        if (error) throw error;
-
-        alert(`New code generated: ${data.code}\n\nThe code has been updated in the database.`);
-
-        // Reload the list
-        await loadVerificationCodes();
-
-    } catch (err) {
-        console.error('Error regenerating code:', err);
-        alert('Failed to regenerate code: ' + err.message);
-    }
 }
