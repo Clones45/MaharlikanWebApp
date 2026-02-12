@@ -194,7 +194,7 @@ async function loadAndRender() {
         let qInc = supabaseClient
             .from('commissions')
             .select(`
-        created_at, date_earned, amount, commission_type, is_receivable, override_commission, status,
+        created_at, date_earned, amount, commission_type, is_receivable, override_commission, status, agent_id,
         agent:agents!commissions_agent_id_fkey(firstname, lastname)
       `)
             .gte('date_earned', gte)
@@ -251,7 +251,7 @@ async function loadAndRender() {
         // --- 5. Fetch Total Collections for Period ---
         let qColTotal = supabaseClient
             .from('collections')
-            .select('payment');
+            .select('payment, agent_id, member_id, is_membership_fee, payment_for, first_name, last_name');
 
         qColTotal = qColTotal.gte('date_paid', gte).lt('date_paid', lt);
         if (agentId !== 'all') qColTotal = qColTotal.eq('agent_id', agentId);
@@ -273,9 +273,12 @@ async function loadAndRender() {
         const totalCollections = (resColTotal.data || []).reduce((sum, c) => sum + num(c.payment), 0);
         if (SELECTORS.sumCollections) SELECTORS.sumCollections.textContent = peso(totalCollections);
 
+        // Compute Eligibility for Forfeiture Logic (3+ members or Mixed)
+        const eligibilityMap = computeAgentEligibility(resColTotal.data || []);
+
         // Calculate Breakdown Rollup
         const isCutoffPassed = new Date() >= new Date(lt);
-        const rollup = calculateRollup(resInc.data || [], isCutoffPassed);
+        const rollup = calculateRollup(resInc.data || [], isCutoffPassed, eligibilityMap);
 
         // Combined Incentives (Recruiter + Office)
         const officeVal = officeItems.length * 50.00;
@@ -493,7 +496,46 @@ function renderOffice(list) {
 }
 
 /* ===== Breakdown Logic (Synced with view_commissions.js) ===== */
-function calculateRollup(list, isCutoffPassed) {
+function computeAgentEligibility(collections) {
+    const byAgent = {};
+    collections.forEach(c => {
+        if (!byAgent[c.agent_id]) byAgent[c.agent_id] = [];
+        byAgent[c.agent_id].push(c);
+    });
+
+    const eligibleAgents = new Set();
+
+    Object.entries(byAgent).forEach(([agentId, list]) => {
+        // Rule A: 3+ Memberships
+        const memCount = list.filter(c => c.is_membership_fee === true).length;
+        const ruleA = memCount >= 3;
+
+        // Rule B: Mixed Member (Group by NAME)
+        const byMemberName = {};
+        list.forEach(c => {
+            const key = (c.last_name && c.first_name)
+                ? `${c.last_name.trim().toUpperCase()}|${c.first_name.trim().toUpperCase()}`
+                : `ID:${c.member_id}`;
+            if (!byMemberName[key]) byMemberName[key] = [];
+            byMemberName[key].push(c);
+        });
+
+        let ruleB = false;
+        for (const payments of Object.values(byMemberName)) {
+            const hasMem = payments.some(p => p.is_membership_fee === true);
+            const hasReg = payments.some(p => p.is_membership_fee === false && p.payment_for === 'regular');
+            if (hasMem && hasReg) { ruleB = true; break; }
+        }
+
+        if (ruleA || ruleB) {
+            eligibleAgents.add(Number(agentId));
+        }
+    });
+
+    return eligibleAgents;
+}
+
+function calculateRollup(list, isCutoffPassed, eligibilityMap) {
     const rollup = {
         monthly: 0,
         travel: 0,
@@ -510,7 +552,7 @@ function calculateRollup(list, isCutoffPassed) {
         const amount = num(row.amount);
         const overrideAmount = num(row.override_commission);
         const isReceivable = (row.is_receivable === true);
-        const status = (row.status || 'pending').toLowerCase();
+        const agentId = Number(row.agent_id);
 
         // VAL: Use override if present
         let val = amount;
@@ -519,8 +561,6 @@ function calculateRollup(list, isCutoffPassed) {
         }
 
         // 1. Classification by Type (Category)
-        const isIncentiveType = (type === 'recruiter_bonus');
-
         if (type === 'override') rollup.overrides += val;
         else if (type === 'recruiter_bonus') rollup.recruiter += val;
         else if (type === 'plan_monthly') rollup.monthly += val;
@@ -530,22 +570,29 @@ function calculateRollup(list, isCutoffPassed) {
         rollup.total += val;
 
         // 2. Classification by Status (Forfeited vs Non-forfeited)
-        // FORFEITED: Commissions where is_receivable = false (Failed AGR)
-        // NON-FORFEITED: Commissions where is_receivable = true (Passed AGR)
-        // This reflects the AGR requirement: agents must pass AGR for commissions to become withdrawable.
+        // FORFEITED: Commissions where is_receivable = TRUE but Agent is PENDING (Ineligible)
+        // NON-FORFEITED: Eligible Agents OR (is_receivable=FALSE & not forfeited yet?) -- Wait.
+        // User Spec: "forfieted is the agents who is still pending... amount should be the Receivable"
 
-        if (!isReceivable) {
-            // Commission failed AGR check.
-            // ONLY mark as forfeited if the cutoff has passed. 
-            // If the period is still active, it counts as Non-Forfeited (Pending Potential).
-            if (isCutoffPassed) {
+        // If commission is NOT receivable (e.g. failed AGR for other reasons?), it's not part of this forfeiture logic.
+        // BUT: User said "amount should be the Receivable".
+
+        if (isReceivable) {
+            const isEligible = eligibilityMap.has(agentId);
+
+            if (!isEligible) {
+                // Pending Agent -> Forfeited
                 rollup.forfeited += val;
             } else {
+                // Eligible Agent -> Non-Forfeited
                 rollup.nonForfeited += val;
             }
         } else {
-            // Commission passed AGR check - it's receivable (non-forfeited)
-            rollup.nonForfeited += val;
+            // Not Receivable (e.g. invalid?) -> Should not count as forfeited based on user logic "amount should be Receivable"
+            // So we ignore it or add to nonForfeited?
+            // Since it's not receivable, it's not part of the "pay out" pool anyway.
+            // We'll leave it out of both or add to nonForfeited distinct bucket if needed.
+            // For now, let's just NOT add to forfeited.
         }
     });
 

@@ -14,7 +14,10 @@ const SELECTORS = {
   applyBtn: qs('applyBtn'),
   exportBtn: qs('exportBtn'),
   printBtn: qs('printBtn'),
-  tCollection: qs('tCollection')
+  tCollection: qs('tCollection'),
+  totalForfeited: qs('totalForfeited'),
+  cutoffStatus: qs('cutoffStatus'),
+  btnReleaseForfeited: qs('btnReleaseForfeited')
 };
 
 /* ===== Config & State ===== */
@@ -139,6 +142,11 @@ function wireEvents() {
   SELECTORS.printBtn.addEventListener('click', () => window.print());
   SELECTORS.monthSel.addEventListener('change', updatePeriodLabel);
   SELECTORS.yearSel.addEventListener('change', updatePeriodLabel);
+
+  // NEW: Wire forfeited release button
+  if (SELECTORS.btnReleaseForfeited) {
+    SELECTORS.btnReleaseForfeited.addEventListener('click', handleForfeitedRelease);
+  }
 }
 
 /* ===== Date Cutoffs ===== */
@@ -167,6 +175,102 @@ function updatePeriodLabel() {
   SELECTORS.periodEl.textContent = `${nice(start)} – ${nice(endDisplay)}`;
 }
 
+/* ===== Forfeited Commission Logic ===== */
+
+/**
+ * Check if cutoff period has passed
+ * Cutoff for a given month (e.g., Feb) is the 7th of the next month (Mar 7)
+ */
+function isCutoffPassed(year, month) {
+  const now = new Date();
+  const cutoffDate = new Date(year, month, 7); // 7th of NEXT month (month is 0-indexed)
+  return now >= cutoffDate;
+}
+
+/**
+ * Update cutoff status UI and button state
+ */
+function updateCutoffUI(year, month) {
+  if (!SELECTORS.cutoffStatus || !SELECTORS.btnReleaseForfeited) return;
+
+  // Rule: Feature starts from Feb 2026. Disable for earlier months.
+  if (year < 2026 || (year === 2026 && month < 2)) {
+    SELECTORS.cutoffStatus.textContent = `⛔ Release not available for periods before Feb 2026`;
+    SELECTORS.cutoffStatus.style.color = 'var(--text-muted)';
+    SELECTORS.btnReleaseForfeited.disabled = true;
+    return;
+  }
+
+  const cutoffDate = new Date(year, month, 7);
+  const isPassed = isCutoffPassed(year, month);
+  const nice = d => d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+  if (isPassed) {
+    SELECTORS.cutoffStatus.textContent = `✅ Cutoff passed (${nice(cutoffDate)}) - Ready to release`;
+    SELECTORS.cutoffStatus.style.color = 'var(--success)';
+    SELECTORS.btnReleaseForfeited.disabled = false;
+  } else {
+    SELECTORS.cutoffStatus.textContent = `⏳ Cutoff: ${nice(cutoffDate)} - Button will be active after this date`;
+    SELECTORS.cutoffStatus.style.color = 'var(--text-muted)';
+    SELECTORS.btnReleaseForfeited.disabled = true;
+  }
+}
+
+/**
+ * Handle forfeited commission release
+ */
+async function handleForfeitedRelease() {
+  try {
+    const year = num(SELECTORS.yearSel.value);
+    const month = num(SELECTORS.monthSel.value);
+
+    // Check if cutoff passed (double-check)
+    if (!isCutoffPassed(year, month)) {
+      return toast('Cannot release before cutoff period', 'error');
+    }
+
+    // Get total forfeited amount
+    const totalForfeitedText = SELECTORS.totalForfeited.textContent.replace(/[₱,]/g, '');
+    const totalAmount = num(totalForfeitedText);
+
+    if (totalAmount <= 0) {
+      return toast('No forfeited commissions to release', 'error');
+    }
+
+    // Confirmation
+    const msg = `Release Forfeited Commissions\n\n` +
+      `Period: ${year}-${String(month).padStart(2, '0')}\n` +
+      `Total Amount: ${peso(totalAmount)}\n` +
+      `To: OM Wallet (Agent ID: 2)\n\n` +
+      `This action cannot be undone. Proceed?`;
+
+    if (!confirm(msg)) return;
+
+    // Call RPC function
+    const { data, error } = await supabaseClient.rpc('release_forfeited_commissions', {
+      p_year: year,
+      p_month: month,
+      p_om_agent_id: 2
+    });
+
+    if (error) throw error;
+
+    toast(`✅ Successfully released ${peso(data.amount)} to OM Wallet`, 'success');
+
+    // Reload to reflect changes
+    await loadAndRender();
+
+  } catch (e) {
+    console.error('Release Forfeited Error:', e);
+    if (e.message && e.message.includes('already released')) {
+      toast('Forfeited commissions for this period have already been released', 'error');
+    } else {
+      toast(e.message || 'Failed to release forfeited commissions', 'error');
+    }
+  }
+}
+
+
 /* ===== COMMISSION CLASSIFICATION LOGIC ===== */
 
 /**
@@ -180,6 +284,7 @@ function createRollup(agentId) {
     overrides: 0,
     recruiter: 0,
     outright: 0,
+    forfeited: 0, // NEW: Track forfeited commissions
 
     // Aggregates
     receivable: 0,
@@ -207,14 +312,24 @@ function classifyCommission(row, rollup) {
     // FIX 2: Check strictly for non-zero to avoid 0 fallback issue
     const val = (overrideAmount !== 0) ? overrideAmount : amount;
     addToOverrides(rollup, val);
-    addToReceivable(rollup, val); // Always Receivable
+
+    if (isReceivable) {
+      addToReceivable(rollup, val);
+    } else {
+      addToNonReceivable(rollup, val);
+    }
     return;
   }
 
   // RULE 6: RECRUITER BONUS
   if (type === 'recruiter_bonus') {
     addToRecruiter(rollup, amount);
-    addToReceivable(rollup, amount); // Always Receivable
+
+    if (isReceivable) {
+      addToReceivable(rollup, amount);
+    } else {
+      addToNonReceivable(rollup, amount);
+    }
     return;
   }
 
@@ -314,7 +429,7 @@ async function loadAndRender() {
       supabaseClient.from('agents').select('id,firstname,lastname,parent_id'),
       // Select all relevant fields, including override_commission
       supabaseClient.from('commissions').select('*, is_receivable, override_commission').gte('date_earned', gte).lt('date_earned', lt),
-      supabaseClient.from('collections').select('id,agent_id,payment,is_membership_fee,member_id,payment_for').gte('date_paid', gte).lt('date_paid', lt)
+      supabaseClient.from('collections').select('id,agent_id,payment,is_membership_fee,member_id,payment_for,first_name,last_name').gte('date_paid', gte).lt('date_paid', lt)
     ]);
 
     // 2. Initialize Rollups
@@ -352,11 +467,16 @@ async function loadAndRender() {
       const membershipCount = list.filter(x => x.is_membership_fee === true).length;
       const ruleA = membershipCount >= 3;
 
-      // Rule B: 1 Member paying BOTH Regular + Membership
+      // Rule B: 1 Member paying BOTH Regular + Membership (Group by NAME)
       const byMember = {};
       list.forEach(item => {
-        if (!byMember[item.member_id]) byMember[item.member_id] = [];
-        byMember[item.member_id].push(item);
+        // Group by Name ("LAST|FIRST") to handle duplicate member IDs for same person
+        const key = (item.last_name && item.first_name)
+          ? `${item.last_name.trim().toUpperCase()}|${item.first_name.trim().toUpperCase()}`
+          : `ID:${item.member_id}`;
+
+        if (!byMember[key]) byMember[key] = [];
+        byMember[key].push(item);
       });
 
       let ruleB = false;
@@ -367,11 +487,33 @@ async function loadAndRender() {
       }
 
       r.eligible = ruleA || ruleB;
+
+      // FORFEITED LOGIC:
+      // If Agent is PENDING (Not Eligible), their RECEIVABLE amount is considered FORFEITED.
+      // (User Spec: "forfieted is the agents who is still pending... amount should be the Receivable")
+      if (!r.eligible) {
+        r.forfeited = r.receivable;
+      } else {
+        r.forfeited = 0;
+      }
     }
 
     SELECTORS.tCollection.textContent = peso(overallCollection);
 
-    // 5. Render
+    // 5. Calculate Total Forfeited
+    let totalForfeited = 0;
+    Object.values(rollups).forEach(r => {
+      totalForfeited += (r.forfeited || 0);
+    });
+
+    if (SELECTORS.totalForfeited) {
+      SELECTORS.totalForfeited.textContent = peso(totalForfeited);
+    }
+
+    // 6. Update Cutoff UI
+    updateCutoffUI(num(y), num(m));
+
+    // 7. Render
     await renderTable(rollups, agents, byAgentCols, num(y), num(m), { gte, lt });
 
   } catch (e) {
@@ -481,6 +623,7 @@ async function renderTable(rollups, agents, byAgentCols, py, pm, range) {
       <td class="right">${peso(r.overrides)}</td>
       <td class="right">${peso(r.outright)}</td>
       <td class="right">${peso(r.recruiter)}</td>
+      <td class="right" style="color:var(--warning)">${peso(r.forfeited)}</td>
       <td>${r.eligible ? 'Eligible' : 'Pending'}</td>
     `;
     SELECTORS.tbody.appendChild(tr);
@@ -542,6 +685,7 @@ async function renderAgentDetail(rowTr, aid, range, rollup) {
         <tr><td>Overrides</td><td class="right">${peso(rollup.overrides)}</td></tr>
         <tr><td>Travel</td><td class="right">${peso(rollup.travel)}</td></tr>
         <tr><td>RLC</td><td class="right">${peso(rollup.recruiter)}</td></tr>
+        <tr><td style="color:var(--warning)">Forfeited</td><td class="right" style="color:var(--warning)">${peso(rollup.forfeited)}</td></tr>
         <tr style="border-top:1px solid #ffffff22">
           <td><b>Total Earned</b></td>
           <td class="right" style="color:#4ade80;font-weight:700">${peso(rollup.total)}</td>

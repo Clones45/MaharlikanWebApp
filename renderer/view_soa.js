@@ -495,6 +495,28 @@ function populateCollections(collections, totalAmount, defaultCollector, monthly
         return;
     }
 
+    // Sort collections: Adapted first, then Membership, then by date
+    const sortedCollections = [...collections].sort((a, b) => {
+        const aPayFor = (a.payment_for || '').toLowerCase();
+        const bPayFor = (b.payment_for || '').toLowerCase();
+
+        const aIsAdapted = aPayFor.includes('adapted');
+        const bIsAdapted = bPayFor.includes('adapted');
+        const aIsMembership = aPayFor.includes('membership');
+        const bIsMembership = bPayFor.includes('membership');
+
+        // Adapted payments first
+        if (aIsAdapted && !bIsAdapted) return -1;
+        if (!aIsAdapted && bIsAdapted) return 1;
+
+        // Then membership payments
+        if (aIsMembership && !bIsMembership) return -1;
+        if (!aIsMembership && bIsMembership) return 1;
+
+        // Then by date (newest first for regular payments)
+        return new Date(b.date_paid) - new Date(a.date_paid);
+    });
+
     let runningBalance = Number(totalAmount) || 0;
     let runningInstallment = 0;
     const monthlyDueVal = Number(monthlyDue) || 0;
