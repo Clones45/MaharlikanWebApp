@@ -129,9 +129,16 @@ function wireEvents() {
 
   const lookupMember = () => loadMemberForMAF();
 
-  // Wire member lookup
+  // Wire member lookup with debounce to prevent race conditions
+  let _lookupTimer = null;
+  const debouncedLookup = () => {
+    clearTimeout(_lookupTimer);
+    _lookupTimer = setTimeout(() => loadMemberForMAF(), 350);
+  };
+
   if (mafInput) {
-    ['input', 'keyup', 'blur', 'change'].forEach(ev => mafInput.addEventListener(ev, lookupMember));
+    ['input', 'keyup'].forEach(ev => mafInput.addEventListener(ev, debouncedLookup));
+    ['blur', 'change'].forEach(ev => mafInput.addEventListener(ev, lookupMember));
   }
 
   // Wire amount focus to also trigger lookup if needed
@@ -193,11 +200,13 @@ async function loadCollectors() {
 /* ==========================================================================
    4. MEMBER LOADING & LOGIC
    ========================================================================== */
+let _lookupToken = 0; // Race condition guard
+
 async function loadMemberForMAF() {
   const info = qs('#memberInfo');
   const rawMaf = (qs('#maf_no')?.value || '').trim();
 
-  // Reset state if empty
+  const myToken = ++_lookupToken; // Capture token for this invocation
   if (!rawMaf) {
     currentMember = null;
     info.textContent = 'Enter AF No and tab/click away to load member details.';
@@ -218,6 +227,8 @@ async function loadMemberForMAF() {
       .limit(1);
 
     if (error) throw error;
+
+    if (myToken !== _lookupToken) return; // A newer lookup started — abort
 
     if (!data || !data.length) {
       info.innerHTML = `<span style="color:#e66">Member not found for AF No: ${esc(afNumber)}</span>`;

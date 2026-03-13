@@ -5,7 +5,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
-const { autoUpdater } = require("electron-updater");
+
 
 /* -------------------------------------------------------------
    1) Early logging setup (for crash diagnostics)
@@ -217,10 +217,19 @@ function createWindow() {
     if (input.control && input.shift && input.key.toLowerCase() === "q") {
       console.log("[SHORTCUT] CTRL+SHIFT+Q detected. Opening hidden manager...");
       event.preventDefault();
-      // Ensure the file is allowed (it should be picked up by buildAllowlist if it exists)
-      // But we might need to manually allow it if buildAllowlist is strict about .html files in root vs pages
-      // Our buildAllowlist scans renderer/ and renderer/pages/ so it should be fine.
       openChildWindow("manage_collections.html");
+    }
+
+    // Open DevTools with F12 or Ctrl+Shift+I (dev only)
+    if (!app.isPackaged) {
+      if (input.key === "F12" || (input.control && input.shift && input.key.toLowerCase() === "i")) {
+        event.preventDefault();
+        if (mainWindow.webContents.isDevToolsOpened()) {
+          mainWindow.webContents.closeDevTools();
+        } else {
+          mainWindow.webContents.openDevTools();
+        }
+      }
     }
   });
 }
@@ -249,6 +258,7 @@ app.whenReady().then(() => {
 
   try {
     if (app.isPackaged) {
+      const { autoUpdater } = require("electron-updater");
       console.log("[UPDATE] Checking for updates...");
       safeLog("[UPDATE] Checking for updates...");
 
