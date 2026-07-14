@@ -180,35 +180,37 @@ async function boot() {
     }
 
     if (!session) {
-      setMsg('Not signed in. Please log in again.');
-      // Optional: redirect to login or show error
-      return;
+      // ⚠️ Don't bail out here: still wire up the form so the Save button
+      // works and gives a clear error, instead of silently doing nothing.
+      setMsg('⚠️ Not signed in. Please log in again on the main window before saving.');
     }
 
-    // 4) Wire UI events
+    // 4) Wire UI events (always, even if session lookup above failed)
     wire();
 
     // 5) Load agents for required dropdown
     await loadAgents();
 
     // 6) Preselect agent based on the logged-in user’s profile (if mapped)
-    try {
-      const { data: prof } = await supabaseClient
-        .from('users_profile')
-        .select('agent_id')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
+    if (session) {
+      try {
+        const { data: prof } = await supabaseClient
+          .from('users_profile')
+          .select('agent_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
 
-      const sel = document.getElementById('agentSelect');
-      if (sel && prof?.agent_id) {
-        const want = String(prof.agent_id);
-        if ([...sel.options].some(o => o.value === want)) sel.value = want;
+        const sel = document.getElementById('agentSelect');
+        if (sel && prof?.agent_id) {
+          const want = String(prof.agent_id);
+          if ([...sel.options].some(o => o.value === want)) sel.value = want;
+        }
+      } catch (e) {
+        console.warn('[preselect agent] skipped:', e);
       }
-    } catch (e) {
-      console.warn('[preselect agent] skipped:', e);
-    }
 
-    setMsg('');
+      setMsg('');
+    }
   } catch (e) {
     console.error('[boot] error:', e);
     setMsg('Init failed: ' + (e.message || e));

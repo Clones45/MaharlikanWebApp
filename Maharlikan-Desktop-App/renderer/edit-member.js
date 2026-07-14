@@ -417,6 +417,13 @@ async function onUpdate() {
       };
     }).filter(r => r.last_name || r.first_name);
 
+    if (beneRows.length) {
+      const { error: insErr } = await SB.from("beneficiaries").insert(beneRows);
+      if (insErr) {
+        console.error("[Insert Beneficiaries] Error:", insErr);
+        throw insErr;
+      }
+    }
 
     // 🧩 7. Post-save behavior
     if (CLEAR_AFTER_UPDATE) {
