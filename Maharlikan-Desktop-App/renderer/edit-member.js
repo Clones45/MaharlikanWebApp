@@ -4,6 +4,28 @@
 const SB = window.SB;
 console.log("EDIT-MEMBER VERSION CHECK — BUILD #9");
 
+// 🔑 Authenticate this client with the session token passed via URL (same
+// mechanism app.js already uses for add_member.html). Without this, every
+// request here runs as the anonymous role and gets rejected by any RLS
+// policy that requires an authenticated user — surfaces as SQLSTATE 42501
+// ("You don't have permission to perform this action").
+const sessionReady = (async function initSession() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("access_token");
+    const refresh = params.get("refresh_token");
+    if (token && refresh) {
+      const { error } = await SB.auth.setSession({ access_token: token, refresh_token: refresh });
+      if (error) console.warn("[edit-member] Failed to set session:", error);
+      else console.log("[edit-member] ✅ Session set — requests will run as the authenticated user.");
+    } else {
+      console.warn("[edit-member] No access/refresh token in URL — requests will run as anonymous and may be rejected by RLS.");
+    }
+  } catch (e) {
+    console.error("[edit-member] Session init error:", e);
+  }
+})();
+
 
 /** =========================
  *  Behavior toggle
@@ -132,6 +154,7 @@ searchBox.addEventListener("keydown", (e) => {
 });
 
 async function onSearch() {
+  await sessionReady;
   const q = searchBox.value.trim();
   if (!q) {
     searchMsg.textContent = "Please enter a search term.";
@@ -267,6 +290,7 @@ addBeneficiaryBtn.addEventListener("click", () => {
 updateBtn.addEventListener("click", onUpdate);
 
 async function onUpdate() {
+  await sessionReady;
   const memberId = document.getElementById("member_id").value;
   if (!memberId) return showSplash("No member loaded.", "error");
 
@@ -486,6 +510,7 @@ if (transferBtn) {
 }
 
 async function onTransfer() {
+  await sessionReady;
   const memberId = document.getElementById("member_id").value;
   if (!memberId) return showSplash("No member loaded.", "error");
 
@@ -554,6 +579,7 @@ async function onTransfer() {
 deleteBtn.addEventListener("click", onDelete);
 
 async function onDelete() {
+  await sessionReady;
   const memberId = document.getElementById("member_id").value;
   if (!memberId) return showSplash("No member selected.", "error");
   if (!confirm("Are you sure you want to delete this member and all beneficiaries?")) return;
@@ -582,6 +608,7 @@ async function onDelete() {
    ========================= */
 (async function init() {
   try {
+    await sessionReady;
     await loadAgents();
 
     // Optional: auto-calc age from birth_date
