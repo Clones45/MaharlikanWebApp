@@ -4,6 +4,7 @@ const tbody = document.getElementById('tbody');
 const monthSel = document.getElementById('monthSel');
 const yearSel = document.getElementById('yearSel');
 const loadBtn = document.getElementById('loadBtn');
+const printBtn = document.getElementById('printBtn');
 const statusMsg = document.getElementById('statusMsg');
 
 // Modal Elements
@@ -149,6 +150,7 @@ function setupDateSelectors() {
 
 function wireEvents() {
     loadBtn.addEventListener('click', loadCollections);
+    printBtn.addEventListener('click', printCollections);
     cancelEditBtn.addEventListener('click', () => editModal.classList.remove('show'));
     saveEditBtn.addEventListener('click', saveEdit);
 
@@ -272,6 +274,12 @@ async function loadCollections() {
 
         window._loadedMonthData = data; // Store original month data
         window._displayedData = data;   // Store currently displayed data
+        // Remember which period the loaded data belongs to (used by Print)
+        window._loadedPeriod = {
+            label: `${monthSel.options[monthSel.selectedIndex].textContent} ${y}`,
+            startDate,
+            endDate
+        };
         statusMsg.textContent = `Found ${data.length} records.`;
         renderTable(data);
 
@@ -314,6 +322,105 @@ function renderTable(data, isSearch = false) {
 // Actually, loadCollections sets window._currentData. renderTable just renders.
 // So we don't need to stash here anymore if we do it in loadCollections.
 
+
+/* ---------- Print Logic ---------- */
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function printCollections() {
+    const data = window._loadedMonthData;
+
+    if (!data || data.length === 0) {
+        toast('Nothing to print. Click "Load Collections" first.', 'error');
+        return;
+    }
+
+    const period = window._loadedPeriod || { label: '', startDate: '', endDate: '' };
+    const total = data.reduce((sum, row) => sum + Number(row.payment || 0), 0);
+    const printedOn = new Date().toLocaleString();
+
+    const rows = data.map(row => `
+        <tr>
+          <td>${escapeHtml(row.date_paid)}</td>
+          <td>${escapeHtml(row.maf_no)}</td>
+          <td>${escapeHtml(row.last_name)}, ${escapeHtml(row.first_name)}</td>
+          <td>${escapeHtml(row.or_no)}</td>
+          <td class="right">${Number(row.payment || 0).toFixed(2)}</td>
+          <td>${escapeHtml(row.payment_for)}</td>
+        </tr>`).join('');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Collections - ${escapeHtml(period.label)}</title>
+<style>
+  @page { size: A4 portrait; margin: 12mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #000; margin: 0; font-size: 11px; }
+  h1 { font-size: 16px; margin: 0 0 4px; text-align: center; text-transform: uppercase; }
+  .sub { text-align: center; font-size: 11px; margin-bottom: 2px; }
+  .meta { text-align: center; font-size: 10px; color: #444; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #999; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #eee; font-size: 11px; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+  .right { text-align: right; }
+  tfoot td { font-weight: bold; background: #f4f4f4; }
+</style>
+</head>
+<body>
+  <h1>Maharlikan Mortuary Care Services</h1>
+  <div class="sub"><strong>Collection Report — ${escapeHtml(period.label)}</strong></div>
+  <div class="meta">
+    Covered period: ${escapeHtml(period.startDate)} to ${escapeHtml(period.endDate)}
+    &nbsp;•&nbsp; ${data.length} record(s) &nbsp;•&nbsp; Printed: ${escapeHtml(printedOn)}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:13%">Date Paid</th>
+        <th style="width:10%">AF No</th>
+        <th style="width:30%">Name</th>
+        <th style="width:15%">OR No</th>
+        <th style="width:14%" class="right">Amount (₱)</th>
+        <th style="width:18%">Payment For</th>
+      </tr>
+    </thead>
+    <tbody>${rows}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" class="right">TOTAL</td>
+        <td class="right">${total.toFixed(2)}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>`;
+
+    const frame = document.getElementById('printFrame');
+    frame.onload = () => {
+        try {
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+        } catch (e) {
+            console.error('Print failed', e);
+            toast('Print failed: ' + e.message, 'error');
+        }
+    };
+
+    const doc = frame.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+}
 
 /* ---------- Edit Logic ---------- */
 function openEdit(id) {

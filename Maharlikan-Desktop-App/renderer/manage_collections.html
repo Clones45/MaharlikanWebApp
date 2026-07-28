@@ -226,6 +226,29 @@
         .home-btn:hover {
             opacity: 0.9;
         }
+
+        .print-btn {
+            background: var(--secondary-color);
+            color: #fff;
+            border: 0;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .print-btn:hover {
+            opacity: 0.9;
+        }
+
+        #printFrame {
+            position: fixed;
+            width: 0;
+            height: 0;
+            border: 0;
+            visibility: hidden;
+        }
     </style>
 </head>
 
@@ -261,6 +284,7 @@
         <div style="display:flex; align-items:center;">
             <div style="font-size: 0.9em; opacity: 0.7; margin-right: 15px;">Use with caution. Edits affect member
                 balances.</div>
+            <button id="printBtn" class="print-btn">🖨 Print</button>
             <button class="home-btn" onclick="window.location.href='index.html'">🏠 Home</button>
         </div>
     </div>
@@ -336,6 +360,9 @@
     </div>
 
     <div id="toast" class="toast"></div>
+
+    <!-- Hidden frame used to render the printable report -->
+    <iframe id="printFrame" title="Print preview"></iframe>
 
     <script src="manage_collections.js"></script>
 </body>
