@@ -401,17 +401,36 @@ async function onUpdate() {
 
     console.log("[onUpdate] Cleaned Payload:", payload);
 
-    const { error: upErr } = await SB
+    // .select() makes PostgREST return the rows it actually touched. Without
+    // it an update that matches NOTHING (RLS filtering the row out, or a bad
+    // id) comes back with no error and no data — which is why this used to
+    // report success while the record never changed.
+    const { data: updatedRows, error: upErr } = await SB
       .from("members")
       .update(payload)
-      .eq("id", memberId);
+      .eq("id", memberId)
+      .select("id");
 
 
     if (upErr) {
       console.error("[Update Member] Error:", upErr);
       throw upErr;
     }
-    showSplash("Member record updated successfully!", "success");
+
+    if (!updatedRows || updatedRows.length === 0) {
+      const { data: sessionData } = await SB.auth.getSession();
+      const hasSession = !!sessionData?.session;
+      console.error("[Update Member] Update matched 0 rows.", {
+        memberId,
+        hasSession,
+        role: hasSession ? "authenticated" : "anon"
+      });
+      throw new Error(
+        hasSession
+          ? "The database refused the change (no rows updated). Your account may not have permission to edit members."
+          : "Your login session was not carried into this page, so the database rejected the change. Go back to the dashboard and open Edit Member again."
+      );
+    }
 
 
     // 🧩 6. Replace beneficiaries safely
@@ -548,12 +567,17 @@ async function onTransfer() {
 
     console.log("[onTransfer] Updating dates:", payload);
 
-    const { error: upErr } = await SB
+    const { data: transferred, error: upErr } = await SB
       .from("members")
       .update(payload)
-      .eq("id", memberId);
+      .eq("id", memberId)
+      .select("id");
 
     if (upErr) throw upErr;
+
+    if (!transferred || transferred.length === 0) {
+      throw new Error("The database refused the transfer (no rows updated). Check that your session is still valid and that you have permission to edit members.");
+    }
 
     showSplash("✅ Member Transferred Successfully! Contestability reset.", "success");
 

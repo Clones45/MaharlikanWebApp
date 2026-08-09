@@ -196,7 +196,7 @@ async function performSearch(term) {
             statusMsg.textContent = `Found ${window._loadedMonthData.length} records.`;
         } else {
             window._displayedData = [];
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 20px; color: #777;">Select a period and click Load.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px; color: #777;">Select a period and click Load.</td></tr>';
             statusMsg.textContent = '';
         }
         return;
@@ -222,6 +222,7 @@ async function performSearch(term) {
         window._displayedData = data;
         statusMsg.textContent = `Search found ${data.length} matches (Global).`;
         renderTable(data, true);
+        await attachInstallments(data, true);
 
     } catch (err) {
         console.error("Search error:", err);
@@ -263,14 +264,25 @@ async function loadCollections() {
     console.log(`Loading range: ${startDate} to ${endDate}`);
 
     try {
-        const { data, error } = await supabaseClient
-            .from('collections')
-            .select('*')
-            .gte('date_paid', startDate)
-            .lte('date_paid', endDate)
-            .order('date_paid', { ascending: false });
+        // Paginated: PostgREST caps an unbounded select at 1000 rows and gives
+        // no indication it truncated. A silently short month would print an
+        // incomplete collection report, so page until the server runs dry.
+        const PAGE = 1000;
+        const data = [];
+        for (let from = 0; ; from += PAGE) {
+            const { data: page, error } = await supabaseClient
+                .from('collections')
+                .select('*')
+                .gte('date_paid', startDate)
+                .lte('date_paid', endDate)
+                .order('date_paid', { ascending: false })
+                .range(from, from + PAGE - 1);
 
-        if (error) throw error;
+            if (error) throw error;
+
+            data.push(...(page || []));
+            if (!page || page.length < PAGE) break;
+        }
 
         window._loadedMonthData = data; // Store original month data
         window._displayedData = data;   // Store currently displayed data
@@ -282,6 +294,7 @@ async function loadCollections() {
         };
         statusMsg.textContent = `Found ${data.length} records.`;
         renderTable(data);
+        await attachInstallments(data);
 
     } catch (error) {
         console.error(error);
@@ -292,7 +305,7 @@ async function loadCollections() {
 
 function renderTable(data, isSearch = false) {
     if (!data || data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">${isSearch ? 'No matches found.' : 'No records found.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">${isSearch ? 'No matches found.' : 'No records found.'}</td></tr>`;
         return;
     }
 
@@ -303,6 +316,7 @@ function renderTable(data, isSearch = false) {
       <td>${row.last_name}, ${row.first_name}</td>
       <td>${row.or_no || ''}</td>
       <td class="right">₱${Number(row.payment).toFixed(2)}</td>
+      <td class="center">${row._installment ?? '…'}</td>
       <td>${row.payment_for || ''}</td>
       <td>
         <button class="edit" onclick="openEdit('${row.id}')">Edit</button>
@@ -322,6 +336,119 @@ function renderTable(data, isSearch = false) {
 // Actually, loadCollections sets window._currentData. renderTable just renders.
 // So we don't need to stash here anymore if we do it in loadCollections.
 
+
+/* ---------- Installment No ----------
+   Mirrors the running-installment computation in view_soa.js so the number
+   shown here matches the member's SOA exactly. Per member: order membership
+   payments first then by date ascending, and accumulate payment / monthly_due
+   for every NON-membership payment. Membership rows show "-".            */
+
+function chunkArray(arr, size) {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+}
+
+function isMembershipRow(col) {
+    return (col.payment_for || '').toLowerCase().includes('membership');
+}
+
+async function computeInstallmentMap(rows) {
+    const map = new Map(); // collection id -> installment display
+
+    const memberIds = [...new Set((rows || []).map(r => r.member_id).filter(Boolean))];
+    if (memberIds.length === 0) return map;
+
+    // 1) Monthly due per member (same field the SOA reads)
+    const dueByMember = new Map();
+    for (const ids of chunkArray(memberIds, 100)) {
+        const { data, error } = await supabaseClient
+            .from('members')
+            .select('id, monthly_due')
+            .in('id', ids);
+        if (error) throw error;
+        (data || []).forEach(m => dueByMember.set(String(m.id), Number(m.monthly_due || 0)));
+    }
+
+    // 2) Full payment history for those members — the installment number is
+    //    cumulative, so the whole history is needed, not just this month.
+    const historyByMember = new Map();
+    const PAGE = 1000;
+    for (const ids of chunkArray(memberIds, 100)) {
+        let from = 0;
+        for (;;) {
+            const { data, error } = await supabaseClient
+                .from('collections')
+                .select('id, member_id, payment, payment_for, date_paid, created_at, is_membership_fee')
+                .in('member_id', ids)
+                .order('date_paid', { ascending: true })
+                .range(from, from + PAGE - 1);
+            if (error) throw error;
+
+            (data || []).forEach(c => {
+                const key = String(c.member_id);
+                if (!historyByMember.has(key)) historyByMember.set(key, []);
+                historyByMember.get(key).push(c);
+            });
+
+            if (!data || data.length < PAGE) break;
+            from += PAGE;
+        }
+    }
+
+    // 3) Replay each member's history in SOA order
+    for (const [memberId, cols] of historyByMember) {
+        const monthlyDue = dueByMember.get(memberId) || 0;
+
+        // Membership first, then date ascending (view_soa.js sorts on the
+        // flag OR the label here, even though the running total below only
+        // looks at the label).
+        cols.sort((a, b) => {
+            const memA = isMembershipRow(a) || a.is_membership_fee;
+            const memB = isMembershipRow(b) || b.is_membership_fee;
+            if (memA && !memB) return -1;
+            if (!memA && memB) return 1;
+            return new Date(a.date_paid || a.created_at || 0) - new Date(b.date_paid || b.created_at || 0);
+        });
+
+        let running = 0;
+        for (const col of cols) {
+            const isMem = isMembershipRow(col);
+            if (!isMem && monthlyDue > 0) {
+                running += Number(col.payment || 0) / monthlyDue;
+            }
+            map.set(String(col.id), isMem ? '-' : String(parseFloat(running.toFixed(2))));
+        }
+    }
+
+    return map;
+}
+
+// Fills row._installment on the given rows, then re-renders.
+async function attachInstallments(rows, isSearch = false) {
+    if (!rows || rows.length === 0) return;
+
+    const baseStatus = statusMsg.textContent;
+    statusMsg.textContent = `${baseStatus} Computing installment numbers...`;
+
+    let failed = false;
+    try {
+        const map = await computeInstallmentMap(rows);
+        rows.forEach(r => { r._installment = map.get(String(r.id)) ?? '-'; });
+    } catch (err) {
+        console.error('Installment computation failed', err);
+        failed = true;
+        rows.forEach(r => { r._installment = '?'; });
+    }
+
+    // Only repaint if this data is still the one on screen
+    if (window._displayedData === rows) renderTable(rows, isSearch);
+
+    // renderTable rewrites the status line, so set the warning after it
+    statusMsg.textContent = failed
+        ? `${baseStatus} (installment numbers unavailable)`
+        : baseStatus;
+}
 
 /* ---------- Print Logic ---------- */
 function escapeHtml(value) {
@@ -351,6 +478,7 @@ function printCollections() {
           <td>${escapeHtml(row.last_name)}, ${escapeHtml(row.first_name)}</td>
           <td>${escapeHtml(row.or_no)}</td>
           <td class="right">${Number(row.payment || 0).toFixed(2)}</td>
+          <td class="center">${escapeHtml(row._installment ?? '-')}</td>
           <td>${escapeHtml(row.payment_for)}</td>
         </tr>`).join('');
 
@@ -371,6 +499,7 @@ function printCollections() {
   thead { display: table-header-group; }
   tr { page-break-inside: avoid; }
   .right { text-align: right; }
+  .center { text-align: center; }
   tfoot td { font-weight: bold; background: #f4f4f4; }
 </style>
 </head>
@@ -384,12 +513,13 @@ function printCollections() {
   <table>
     <thead>
       <tr>
-        <th style="width:13%">Date Paid</th>
-        <th style="width:10%">AF No</th>
-        <th style="width:30%">Name</th>
-        <th style="width:15%">OR No</th>
-        <th style="width:14%" class="right">Amount (₱)</th>
-        <th style="width:18%">Payment For</th>
+        <th style="width:12%">Date Paid</th>
+        <th style="width:9%">AF No</th>
+        <th style="width:27%">Name</th>
+        <th style="width:13%">OR No</th>
+        <th style="width:13%" class="right">Amount (₱)</th>
+        <th style="width:10%" class="center">Installment No</th>
+        <th style="width:16%">Payment For</th>
       </tr>
     </thead>
     <tbody>${rows}
@@ -398,6 +528,7 @@ function printCollections() {
       <tr>
         <td colspan="4" class="right">TOTAL</td>
         <td class="right">${total.toFixed(2)}</td>
+        <td></td>
         <td></td>
       </tr>
     </tfoot>
