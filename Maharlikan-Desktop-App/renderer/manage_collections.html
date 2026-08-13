@@ -364,6 +364,19 @@
         </div>
     </div>
 
+    <!-- In-page confirm. Replaces window.confirm(): the native dialog leaves
+         the Electron window unable to receive keyboard input afterwards. -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-top:0">Please confirm</h2>
+            <p id="confirmText" style="line-height:1.5"></p>
+            <div class="modal-actions">
+                <button id="confirmNoBtn" style="background:#555">Cancel</button>
+                <button id="confirmYesBtn" class="danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="toast"></div>
 
     <!-- Hidden frame used to render the printable report -->

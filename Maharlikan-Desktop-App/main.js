@@ -205,6 +205,15 @@ function createWindow() {
   });
 
   mainWindow.webContents.on("did-finish-load", () => {
+    // Restore keyboard focus on every navigation. A native alert()/confirm()
+    // can leave the window taking mouse clicks but no keystrokes, and that
+    // state outlives the page — so returning to the dashboard would otherwise
+    // stay unusable. Guarded by isFocused() so we never steal focus from
+    // another app the user switched to mid-load.
+    if (!mainWindow.isDestroyed() && mainWindow.isFocused()) {
+      mainWindow.webContents.focus();
+    }
+
     ALLOWED_RENDER_FILES = buildAllowlist();
     console.log("[MAIN] (Dev) Rebuilt allowlist:", [...ALLOWED_RENDER_FILES].join(", ") || "(none)");
     console.log("[MAIN] (Dev) Rebuilt allowlist:", [...ALLOWED_RENDER_FILES].join(", ") || "(none)");

@@ -43,6 +43,47 @@ function toast(msg, type = 'info') {
     toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3000);
 }
 
+/* ---------- In-page confirm ----------
+   window.confirm()/alert() open a NATIVE modal, and on Windows that leaves the
+   Electron window unable to receive keyboard input once dismissed — the window
+   still takes mouse clicks, so menus work but no text box accepts typing, and
+   it survives navigating back to the dashboard. Everything here stays in-page. */
+function askConfirm(message, confirmLabel = 'Delete') {
+    return new Promise(resolve => {
+        const modal = document.getElementById('confirmModal');
+        const yes = document.getElementById('confirmYesBtn');
+        const no = document.getElementById('confirmNoBtn');
+        document.getElementById('confirmText').textContent = message;
+        yes.textContent = confirmLabel;
+
+        const close = (answer) => {
+            modal.classList.remove('show');
+            yes.removeEventListener('click', onYes);
+            no.removeEventListener('click', onNo);
+            document.removeEventListener('keydown', onKey);
+            resolve(answer);
+        };
+        const onYes = () => close(true);
+        const onNo = () => close(false);
+        const onKey = (e) => {
+            if (e.key === 'Escape') close(false);
+            if (e.key === 'Enter') close(true);
+        };
+
+        yes.addEventListener('click', onYes);
+        no.addEventListener('click', onNo);
+        document.addEventListener('keydown', onKey);
+        modal.classList.add('show');
+        yes.focus();
+    });
+}
+
+// Belt-and-braces: ask the main process to restore keyboard focus, the same
+// fix add_member.js already uses after its own input-blocking episodes.
+function restoreWindowFocus() {
+    try { window.electronAPI?.focusWindow?.(); } catch { }
+}
+
 /* ---------- Auth Logic ---------- */
 const authOverlay = document.getElementById('authOverlay');
 const authInput = document.getElementById('authInput');
@@ -582,7 +623,7 @@ async function saveEdit() {
     const newDate = editDateInput.value;
     const newReason = editReasonInput.value;
 
-    if (!newAmt || newAmt <= 0) return alert("Invalid Amount");
+    if (!newAmt || newAmt <= 0) return toast("Invalid amount.", "error");
 
     saveEditBtn.disabled = true;
     saveEditBtn.textContent = "Saving...";
@@ -620,16 +661,20 @@ async function saveEdit() {
 
     } catch (e) {
         console.error(e);
-        alert("Update failed: " + e.message);
+        toast("Update failed: " + e.message, "error");
     } finally {
         saveEditBtn.disabled = false;
         saveEditBtn.textContent = "Save Changes";
+        restoreWindowFocus();
     }
 }
 
 /* ---------- Delete Logic ---------- */
 async function confirmDelete(id) {
-    if (!confirm("Are you sure you want to delete this collection? This will reverse the payment from the member's balance.")) return;
+    const ok = await askConfirm(
+        "Are you sure you want to delete this collection? This will reverse the payment from the member's balance."
+    );
+    if (!ok) return;
 
     const row = (window._displayedData || []).find(r => String(r.id) === String(id));
     const memberId = row ? row.member_id : null;
@@ -656,7 +701,9 @@ async function confirmDelete(id) {
         }
     } catch (e) {
         console.error(e);
-        alert("Delete failed: " + e.message);
+        toast("Delete failed: " + e.message, "error");
+    } finally {
+        restoreWindowFocus();
     }
 }
 window.confirmDelete = confirmDelete;
